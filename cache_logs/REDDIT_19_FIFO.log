@@ -1,0 +1,133 @@
+Cache: keySize: 4, valueSize: 688, dim: 172, capacity: 524288, maxQueryNum: 65536, deviceId: 0
+has edge feature
+total 470713 for train, can cache 524288, 1.1138166993475855%
+Epoch 0:
+save model at epoch 0
+	train loss:225555.5701  val ap:0.986427  val auc:0.989930
+	total time:391.574s sample time:66.102s prep time:317.578s
+Epoch 1:
+save model at epoch 1
+	train loss:117150.0999  val ap:0.990013  val auc:0.992701
+	total time:258.168s sample time:42.970s prep time:209.038s
+Epoch 2:
+save model at epoch 2
+	train loss:105221.0524  val ap:0.991473  val auc:0.993471
+	total time:233.720s sample time:38.908s prep time:188.653s
+Epoch 3:
+save model at epoch 3
+	train loss:100028.6561  val ap:0.992175  val auc:0.993851
+	total time:227.057s sample time:37.689s prep time:183.416s
+Epoch 4:
+save model at epoch 4
+	train loss:92497.7909  val ap:0.992384  val auc:0.994434
+	total time:222.649s sample time:36.661s prep time:179.966s
+Epoch 5:
+save model at epoch 5
+	train loss:88953.0092  val ap:0.993278  val auc:0.994820
+	total time:170.452s sample time:27.189s prep time:137.673s
+Epoch 6:
+save model at epoch 6
+	train loss:86361.6299  val ap:0.994308  val auc:0.995577
+	total time:156.362s sample time:23.988s prep time:126.608s
+Epoch 7:
+	train loss:83191.0341  val ap:0.994196  val auc:0.995532
+	total time:175.100s sample time:27.725s prep time:141.715s
+Epoch 8:
+save model at epoch 8
+	train loss:79426.8687  val ap:0.995088  val auc:0.996078
+	total time:232.989s sample time:37.934s prep time:189.052s
+Epoch 9:
+save model at epoch 9
+	train loss:76926.5465  val ap:0.995425  val auc:0.996410
+	total time:215.601s sample time:35.333s prep time:174.413s
+Epoch 10:
+save model at epoch 10
+	train loss:74370.1816  val ap:0.995587  val auc:0.996494
+	total time:240.521s sample time:39.710s prep time:194.963s
+Epoch 11:
+save model at epoch 11
+	train loss:74469.8748  val ap:0.995614  val auc:0.996477
+	total time:275.021s sample time:44.222s prep time:224.789s
+Epoch 12:
+	train loss:73538.4686  val ap:0.995408  val auc:0.996407
+	total time:229.388s sample time:36.589s prep time:186.789s
+Epoch 13:
+save model at epoch 13
+	train loss:72572.0301  val ap:0.995810  val auc:0.996552
+	total time:199.640s sample time:32.657s prep time:160.957s
+Epoch 14:
+save model at epoch 14
+	train loss:71902.3813  val ap:0.996234  val auc:0.996863
+	total time:171.702s sample time:25.969s prep time:140.182s
+Epoch 15:
+	train loss:70941.8944  val ap:0.996161  val auc:0.996883
+	total time:111.320s sample time:15.340s prep time:90.634s
+Epoch 16:
+save model at epoch 16
+	train loss:69487.1966  val ap:0.996329  val auc:0.996936
+	total time:118.141s sample time:16.609s prep time:96.206s
+Epoch 17:
+save model at epoch 17
+	train loss:67822.2747  val ap:0.996474  val auc:0.997009
+	total time:123.877s sample time:18.736s prep time:99.796s
+Epoch 18:
+	train loss:68578.7900  val ap:0.996095  val auc:0.996790
+	total time:118.129s sample time:16.406s prep time:96.420s
+Epoch 19:
+save model at epoch 19
+	train loss:67496.8526  val ap:0.996723  val auc:0.997263
+	total time:122.746s sample time:18.171s prep time:99.240s
+Epoch 20:
+	train loss:66215.9322  val ap:0.996617  val auc:0.997222
+	total time:85.415s sample time:11.031s prep time:69.313s
+Epoch 21:
+save model at epoch 21
+	train loss:67088.7041  val ap:0.996859  val auc:0.997367
+	total time:19.211s sample time:0.934s prep time:13.766s
+Epoch 22:
+	train loss:65765.4295  val ap:0.996653  val auc:0.997276
+	total time:20.244s sample time:1.182s prep time:14.506s
+Epoch 23:
+	train loss:65162.0983  val ap:0.996733  val auc:0.997279
+	total time:19.299s sample time:0.824s prep time:13.930s
+Epoch 24:
+save model at epoch 24
+	train loss:64230.0962  val ap:0.996860  val auc:0.997455
+	total time:19.734s sample time:1.236s prep time:13.935s
+Epoch 25:
+save model at epoch 25
+	train loss:65595.0043  val ap:0.996869  val auc:0.997477
+	total time:18.657s sample time:1.210s prep time:12.883s
+Epoch 26:
+save model at epoch 26
+	train loss:63872.7159  val ap:0.997142  val auc:0.997631
+	total time:21.277s sample time:1.266s prep time:15.368s
+Epoch 27:
+	train loss:63876.5863  val ap:0.996732  val auc:0.997375
+	total time:20.202s sample time:1.212s prep time:14.426s
+Epoch 28:
+save model at epoch 28
+	train loss:63056.6546  val ap:0.997219  val auc:0.997689
+	total time:19.181s sample time:1.021s prep time:13.624s
+Epoch 29:
+	train loss:62332.5397  val ap:0.997155  val auc:0.997586
+	total time:19.267s sample time:1.046s prep time:13.683s
+Epoch 30:
+	train loss:62327.1337  val ap:0.997180  val auc:0.997638
+	total time:21.080s sample time:1.124s prep time:15.340s
+Epoch 31:
+	train loss:61062.5569  val ap:0.997111  val auc:0.997671
+	total time:19.393s sample time:1.173s prep time:13.698s
+ap don't improve in 3 epoches, early stop
+average statistics: 
+	 average_prep time: 108.20497833192348
+	 time_total 53.714 s
+	total sample time: 10.043 s
+	total sample node: 685896.0, self._n_sample_per_node [10]
+	 time_forward: 0.726
+	 time_memory: 3.018
+	 time_message: 2.846
+	 time_backward 1.041s
+	 time_message 29.491s
+Loading model at epoch 28...
+	test AP:0.996465  test AUC:0.997172

@@ -16,6 +16,7 @@ memory:
     mailbox_size: 1
     combine_node_feature: True
     dim_out: 100
+    # dim_out: 100
 gnn:
   - arch: 'transformer_attention'
     layer: 1
@@ -23,10 +24,10 @@ gnn:
     dim_time: 100
     dim_out: 100
 train:
-  - epoch: 100
-    batch_size: 600
+  - epoch: 80
+    batch_size: 5000
     # reorder: 16
     lr: 0.0001
     dropout: 0.2
     att_dropout: 0.2
-    all_on_gpu: True
+    all_on_gpu: False

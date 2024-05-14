@@ -1,0 +1,104 @@
+# %%
+import dgl
+import dgl.graphbolt as gb 
+import torch
+
+# %%
+dataset = gb.BuiltinDataset("cora").load()
+
+# %%
+device="cpu"
+graph = dataset.graph.to(device)
+feature = dataset.feature.to(device).pin_memory_()
+train_set = dataset.tasks[1].train_set
+test_set = dataset.tasks[1].test_set
+task_name = dataset.tasks[1].metadata["name"]
+print(f"Task: {task_name}.")
+print(f"Train_set: {train_set}")
+print(f"Graph: {graph}")
+
+# %%
+from functools import partial
+def create_train_dataloader():
+    datapipe = gb.ItemSampler(train_set, batch_size=256, shuffle=True)
+    datapipe = datapipe.sample_uniform_negative(graph, 5)
+    datapipe = datapipe.sample_neighbor(graph, [5, 5])
+    datapipe = datapipe.transform(partial(gb.exclude_seed_edges, include_reverse_edges=True))
+    datapipe = datapipe.copy_to("cuda:0")
+    datapipe = datapipe.fetch_feature(feature, node_feature_keys=["feat"])
+    return gb.DataLoader(datapipe)
+
+# %%
+feature.keys()
+
+# %%
+feature._features[('node',None,'feat')] = gb.GPUCachedFeature(feature._features[('node',None,'feat')], 512)
+
+# %%
+import dgl.nn as dglnn
+import torch.nn as nn
+import torch.nn.functional as F
+
+
+class SAGE(nn.Module):
+    def __init__(self, in_size, hidden_size):
+        super().__init__()
+        self.layers = nn.ModuleList()
+        self.layers.append(dglnn.SAGEConv(in_size, hidden_size, "mean"))
+        self.layers.append(dglnn.SAGEConv(hidden_size, hidden_size, "mean"))
+        self.hidden_size = hidden_size
+        self.predictor = nn.Sequential(
+            nn.Linear(hidden_size, hidden_size),
+            nn.ReLU(),
+            nn.Linear(hidden_size, 1),
+        )
+
+    def forward(self, blocks, x):
+        hidden_x = x
+        for layer_idx, (layer, block) in enumerate(zip(self.layers, blocks)):
+            hidden_x = layer(block, hidden_x)
+            is_last_layer = layer_idx == len(self.layers) - 1
+            if not is_last_layer:
+                hidden_x = F.relu(hidden_x)
+        return hidden_x
+
+# %%
+in_size = feature.size("node", None, "feat")[0]
+model = SAGE(in_size, 128).to("cuda:0")
+optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+
+# %%
+from tqdm.auto import tqdm
+import time
+t_start = time.time()
+for epoch in range(3):
+    model.train()
+    total_loss = 0
+    for step, data in tqdm(enumerate(create_train_dataloader())):
+        # Get node pairs with labels for loss calculation.
+        compacted_pairs, labels = data.node_pairs_with_labels
+        node_feature = data.node_features["feat"]
+        # Convert sampled subgraphs to DGL blocks.
+        blocks = data.blocks
+
+        # Get the embeddings of the input nodes.
+        y = model(blocks, node_feature)
+        logits = model.predictor(
+            y[compacted_pairs[0]] * y[compacted_pairs[1]]
+        ).squeeze()
+
+        # Compute loss.
+        loss = F.binary_cross_entropy_with_logits(logits, labels)
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        total_loss += loss.item()
+
+    print(f"Epoch {epoch:03d} | Loss {total_loss / (step + 1):.3f}")
+print(f"elapsed time {time.time() - t_start}")
+
+# %%
+
+
+

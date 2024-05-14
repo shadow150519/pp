@@ -1,0 +1,8 @@
+.idea/
+.uuid
+.vscode/
+__pycache__/
+models/
+profile_log/
+results/
+DATA/

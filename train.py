@@ -4,7 +4,7 @@ import os
 parser=argparse.ArgumentParser()
 parser.add_argument('--data', type=str, help='dataset name')
 parser.add_argument('--config', type=str, help='path to config file')
-parser.add_argument('--gpu', type=str, default='0', help='which GPU to use')
+parser.add_argument('--gpu', type=str, default='1', help='which GPU to use')
 parser.add_argument('--model_name', type=str, default='', help='name of stored model')
 parser.add_argument('--use_inductive', action='store_true')
 parser.add_argument('--rand_edge_features', type=int, default=0, help='use random edge featrues')
@@ -23,6 +23,7 @@ from modules import *
 from sampler import *
 from utils import *
 from sklearn.metrics import average_precision_score, roc_auc_score
+from torch.profiler import profile, record_function, ProfilerActivity
 
 def set_seed(seed):
     random.seed(seed)
@@ -33,7 +34,9 @@ def set_seed(seed):
 # set_seed(0)
 
 node_feats, edge_feats = load_feat(args.data, args.rand_edge_features, args.rand_node_features)
+# g:tcsr df:feature
 g, df = load_graph(args.data)
+
 sample_param, memory_param, gnn_param, train_param = parse_config(args.config)
 train_edge_end = df[df['ext_roll'].gt(0)].index[0]
 val_edge_end = df[df['ext_roll'].gt(1)].index[0]
@@ -46,7 +49,7 @@ def get_inductive_links(df, train_edge_end, val_edge_end):
     train_node_set = set(np.unique(np.hstack([train_df['src'].values, train_df['dst'].values])))
     new_node_set = total_node_set - train_node_set
     
-    del total_node_set, train_node_set
+    del total_node_set, train_node_setf
 
     inductive_inds = []
     for index, (_, row) in enumerate(test_df.iterrows()):
@@ -63,6 +66,7 @@ if args.use_inductive:
 gnn_dim_node = 0 if node_feats is None else node_feats.shape[1]
 gnn_dim_edge = 0 if edge_feats is None else edge_feats.shape[1]
 combine_first = False
+# TODO always false
 if 'combine_neighs' in train_param and train_param['combine_neighs']:
     combine_first = True
 model = GeneralModel(gnn_dim_node, gnn_dim_edge, sample_param, memory_param, gnn_param, train_param, combined=combine_first).cuda()
@@ -79,7 +83,7 @@ if 'all_on_gpu' in train_param and train_param['all_on_gpu']:
 
 sampler = None
 if not ('no_sample' in sample_param and sample_param['no_sample']):
-    sampler = ParallelSampler(g['indptr'], g['indices'], g['eid'], g['ts'].astype(np.float32),
+    sampler = ParallelSamplerWrap(g['indptr'], g['indices'], g['eid'], g['ts'].astype(np.float32),
                               sample_param['num_thread'], 1, sample_param['layer'], sample_param['neighbor'],
                               sample_param['strategy']=='recent', sample_param['prop_time'],
                               sample_param['history'], float(sample_param['duration']))
@@ -174,12 +178,32 @@ if 'reorder' in train_param:
     for i in range(1, train_param['reorder']):
         additional_idx = np.zeros(train_param['batch_size'] // train_param['reorder'] * i) - 1
         group_indexes.append(np.concatenate([additional_idx, base_idx])[:base_idx.shape[0]])
+
+# reset timer
+sampler.reset_statistic()
+model.reset_time()
+mailbox.reset_time()
+
+time_forward = 0
+time_backward = 0
+time_total = 0
+
+n_epoch = train_param['epoch']
+
+# prof = torch.profiler.profile(activities=[ProfilerActivity.CPU,ProfilerActivity.CUDA],
+#                                   schedule=torch.profiler.schedule(wait=3,warmup=2,active=20,repeat=1),
+#                                   on_trace_ready=torch.profiler.tensorboard_trace_handler('./profile_log/all_cpu_reddit'),
+#                                   profile_memory=True,
+#                                   record_shapes=True,
+#                                   with_stack=True)
+# prof.start()
 for e in range(train_param['epoch']):
     print('Epoch {:d}:'.format(e))
     time_sample = 0
     time_prep = 0
     time_tot = 0
     total_loss = 0
+
     # training
     model.train()
     if sampler is not None:
@@ -187,10 +211,18 @@ for e in range(train_param['epoch']):
     if mailbox is not None:
         mailbox.reset()
         model.memory_updater.last_updated_nid = None
-    for _, rows in df[:train_edge_end].groupby(group_indexes[random.randint(0, len(group_indexes) - 1)]):
+    # batch训练
+    # len(group_indexes) 好像就是1,我不知道为什么这里要这样写,所以这里就是根据batch_id每次取一个batch训练
+    for i, (_, rows) in enumerate(df[:train_edge_end].groupby(group_indexes[random.randint(0, len(group_indexes) - 1)])):
+        # prof.step()
+        # if i > 3+ 2 +20:
+        #     prof.stop()
+        #     print(f"profile end")
+        #     exit(0)
         t_tot_s = time.time()
         root_nodes = np.concatenate([rows.src.values, rows.dst.values, neg_link_sampler.sample(len(rows))]).astype(np.int32)
         ts = np.concatenate([rows.time.values, rows.time.values, rows.time.values]).astype(np.float32)
+        # sample
         if sampler is not None:
             if 'no_neg' in sample_param and sample_param['no_neg']:
                 pos_root_end = root_nodes.shape[0] * 2 // 3
@@ -198,24 +230,37 @@ for e in range(train_param['epoch']):
             else:
                 sampler.sample(root_nodes, ts)
             ret = sampler.get_ret()
-            time_sample += ret[0].sample_time()
+            # time_sample += ret[0].sample_time()
+            time_sample += ret[0].tot_time()
         t_prep_s = time.time()
+        # 把sample的结果变成DGLblock
         if gnn_param['arch'] != 'identity':
             mfgs = to_dgl_blocks(ret, sample_param['history'])
         else:
             mfgs = node_to_dgl_blocks(root_nodes, ts)
         mfgs = prepare_input(mfgs, node_feats, edge_feats, combine_first=combine_first)
+        # 准备src节点的memory,memory_ts,mails,mail_ts
         if mailbox is not None:
             mailbox.prep_input_mails(mfgs[0])
+
         time_prep += time.time() - t_prep_s
         optimizer.zero_grad()
+
+        # 前向包括update memory和embedding
+        t_forward = time.time()
         pred_pos, pred_neg = model(mfgs)
+        time_forward += time.time() - t_forward
+
         loss = creterion(pred_pos, torch.ones_like(pred_pos))
         loss += creterion(pred_neg, torch.zeros_like(pred_neg))
         total_loss += float(loss) * train_param['batch_size']
+        # backward
+        t_backward = time.time()
         loss.backward()
         optimizer.step()
+        time_backward += time.time() - t_backward
         t_prep_s = time.time()
+        # 更新memory和mailbox
         if mailbox is not None:
             eid = rows['Unnamed: 0'].values
             mem_edge_feats = edge_feats[eid] if edge_feats is not None else None
@@ -231,9 +276,20 @@ for e in range(train_param['epoch']):
         best_e = e
         best_ap = ap
         torch.save(model.state_dict(), path_saver)
+    time_total += time_tot
     print('\ttrain loss:{:.4f}  val ap:{:4f}  val auc:{:4f}'.format(total_loss, ap, auc))
-    print('\ttotal time:{:.2f}s sample time:{:.2f}s prep time:{:.2f}s'.format(time_tot, time_sample, time_prep))
+    print('\ttotal time:{:.3f}s sample time:{:.3f}s prep time:{:.3f}s'.format(time_tot, time_sample, time_prep))
 
+
+print(f"average statistics: ")
+print(f"\t time_total {time_total/n_epoch:.3f} s")
+sampler.report_statistic(n_epoch)
+model.report_statistic(n_epoch, mailbox.time_memory)
+print(f"\t time_backward {time_backward/n_epoch:.3f}s")
+print(f"\t time_message {mailbox.time_message/n_epoch:.3f}s")
+
+
+    
 print('Loading model at epoch {}...'.format(best_e))
 model.load_state_dict(torch.load(path_saver))
 model.eval()

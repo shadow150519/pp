@@ -37,7 +37,7 @@ class EdgePredictor(torch.nn.Module):
 
 class TransfomerAttentionLayer(torch.nn.Module):
 
-    def __init__(self, dim_node_feat, dim_edge_feat, dim_time, num_head, dropout, att_dropout, dim_out, combined=False):
+    def __init__(self, dim_node_feat, dim_edge_feat, dim_time, num_head, dropout, att_dropout, dim_out, combined=False,device_id=0):
         super(TransfomerAttentionLayer, self).__init__()
         self.num_head = num_head
         self.dim_node_feat = dim_node_feat
@@ -48,6 +48,7 @@ class TransfomerAttentionLayer(torch.nn.Module):
         self.att_dropout = torch.nn.Dropout(att_dropout)
         self.att_act = torch.nn.LeakyReLU(0.2)
         self.combined = combined
+        self.device_id = device_id
         if dim_time > 0:
             self.time_enc = TimeEncode(dim_time)
         if combined:
@@ -73,14 +74,14 @@ class TransfomerAttentionLayer(torch.nn.Module):
     def forward(self, b):
         assert(self.dim_time + self.dim_node_feat + self.dim_edge_feat > 0)
         if b.num_edges() == 0:
-            return torch.zeros((b.num_dst_nodes(), self.dim_out), device=torch.device('cuda:0'))
+            return torch.zeros((b.num_dst_nodes(), self.dim_out), device=torch.device('cuda',self.device_id))
         if self.dim_time > 0:
             time_feat = self.time_enc(b.edata['dt'])
-            zero_time_feat = self.time_enc(torch.zeros(b.num_dst_nodes(), dtype=torch.float32, device=torch.device('cuda:0')))
+            zero_time_feat = self.time_enc(torch.zeros(b.num_dst_nodes(), dtype=torch.float32, device=torch.device('cuda', self.device_id)))
         if self.combined:
-            Q = torch.zeros((b.num_edges(), self.dim_out), device=torch.device('cuda:0'))
-            K = torch.zeros((b.num_edges(), self.dim_out), device=torch.device('cuda:0'))
-            V = torch.zeros((b.num_edges(), self.dim_out), device=torch.device('cuda:0'))
+            Q = torch.zeros((b.num_edges(), self.dim_out), device=torch.device('cuda', self.device_id))
+            K = torch.zeros((b.num_edges(), self.dim_out), device=torch.device('cuda', self.device_id))
+            V = torch.zeros((b.num_edges(), self.dim_out), device=torch.device('cuda', self.device_id))
             if self.dim_node_feat > 0:
                 Q += self.w_q_n(b.srcdata['h'][:b.num_dst_nodes()])[b.edges()[1]]
                 K += self.w_k_n(b.srcdata['h'][b.num_dst_nodes():])[b.edges()[0] - b.num_dst_nodes()]
@@ -99,10 +100,10 @@ class TransfomerAttentionLayer(torch.nn.Module):
             att = self.att_dropout(att)
             V = torch.reshape(V*att[:, :, None], (V.shape[0], -1))
             b.edata['v'] = V
-            b.update_all(dgl.function.copy_edge('v', 'm'), dgl.function.sum('m', 'h'))
+            b.update_all(dgl.function.copy_e('v', 'm'), dgl.function.sum('m', 'h'))
         else:
             if self.dim_time == 0 and self.dim_node_feat == 0:
-                Q = torch.ones((b.num_edges(), self.dim_out), device=torch.device('cuda:0'))
+                Q = torch.ones((b.num_edges(), self.dim_out), device=torch.device('cuda', self.device_id))
                 K = self.w_k(b.edata['f'])
                 V = self.w_v(b.edata['f'])
             elif self.dim_time == 0 and self.dim_edge_feat == 0:
@@ -131,8 +132,8 @@ class TransfomerAttentionLayer(torch.nn.Module):
             att = dgl.ops.edge_softmax(b, self.att_act(torch.sum(Q*K, dim=2)))
             att = self.att_dropout(att)
             V = torch.reshape(V*att[:, :, None], (V.shape[0], -1))
-            b.srcdata['v'] = torch.cat([torch.zeros((b.num_dst_nodes(), V.shape[1]), device=torch.device('cuda:0')), V], dim=0)
-            b.update_all(dgl.function.copy_src('v', 'm'), dgl.function.sum('m', 'h'))
+            b.srcdata['v'] = torch.cat([torch.zeros((b.num_dst_nodes(), V.shape[1]), device=torch.device('cuda', self.device_id)), V], dim=0)
+            b.update_all(dgl.function.copy_u('v', 'm'), dgl.function.sum('m', 'h'))
         if self.dim_node_feat != 0:
             rst = torch.cat([b.dstdata['h'], b.srcdata['h'][:b.num_dst_nodes()]], dim=1)
         else:

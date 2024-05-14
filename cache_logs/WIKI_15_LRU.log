@@ -1,0 +1,29 @@
+Cache: keySize: 4, valueSize: 688, dim: 172, capacity: 32768, maxQueryNum: 65536, deviceId: 0
+has edge feature
+total 110232 for train, can cache 32768, 0.29726395239132014%
+Epoch 0:
+save model at epoch 0
+	train loss:133691.8138  val ap:0.873869  val auc:0.913319
+	total time:278.549s sample time:46.471s prep time:227.924s
+Epoch 1:
+	train loss:79529.6686  val ap:0.866458  val auc:0.931605
+	total time:276.043s sample time:46.301s prep time:226.778s
+Epoch 2:
+	train loss:67940.9263  val ap:0.864160  val auc:0.931064
+	total time:264.572s sample time:44.624s prep time:217.036s
+Epoch 3:
+	train loss:62762.4013  val ap:0.872679  val auc:0.933995
+	total time:269.013s sample time:46.115s prep time:219.832s
+ap don't improve in 3 epoches, early stop
+average statistics: 
+	 average_prep time: 222.8924059867859
+	 time_total 13.602 s
+	total sample time: 2.812 s
+	total sample node: 20077.95, self._n_sample_per_node [10]
+	 time_forward: 0.036
+	 time_memory: 0.828
+	 time_message: 0.809
+	 time_backward 0.090s
+	 time_message 8.012s
+Loading model at epoch 0...
+	test AP:0.862525  test AUC:0.914309

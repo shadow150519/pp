@@ -1,0 +1,46 @@
+disable_node: True
+disable_edge: False
+use edge feature
+total 128563062 for train, can cache 8388608, 0.06524897485717943%
+Epoch 0:
+save model at epoch 0
+	train loss:32359792.0528  val ap:0.984262  val auc:0.986690
+	total time:6324.996s sample time:214.144s prep time:4607.808s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 0 times, total time 0.0
+call put 0 times, total time 0.0
+query 2241107875 times, hit 1933282385 times, hit rate 0.863
+Epoch 1:
+	train loss:30994737.3021  val ap:0.983416  val auc:0.986089
+	total time:6321.167s sample time:218.083s prep time:4588.923s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 0 times, total time 0.0
+call put 0 times, total time 0.0
+query 4482236547 times, hit 3866894246 times, hit rate 0.863
+Epoch 2:
+	train loss:30601657.6393  val ap:0.980420  val auc:0.984795
+	total time:4397.136s sample time:110.666s prep time:2958.360s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 0 times, total time 0.0
+call put 0 times, total time 0.0
+query 6723435506 times, hit 5800720298 times, hit rate 0.863
+Epoch 3:
+	train loss:30464399.9354  val ap:0.964500  val auc:0.975415
+	total time:2485.465s sample time:40.183s prep time:1377.034s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 0 times, total time 0.0
+call put 0 times, total time 0.0
+query 8964591812 times, hit 7734590644 times, hit rate 0.863
+ap don't improve in 3 epoches, early stop
+average statistics: 
+	 average_prep time: 3383.0310161709785
+	 time_total 244.110 s
+	total sample time: 12.805 s
+	total sample node: 24567935.4, self._n_sample_per_node [10]
+	 time_forward: 26.328
+	 time_memory: 11.853
+	 time_message: 3.203
+	 time_backward 27.457s
+	 time_message 43.729s
+Loading model at epoch 0...
+	test AP:0.973701  test AUC:0.981096

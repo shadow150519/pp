@@ -1,0 +1,86 @@
+Cache: keySize: 4, valueSize: 688, dim: 172, capacity: 16384, maxQueryNum: 65536, deviceId: 0
+has edge feature
+total 110232 for train, can cache 16384, 0.14863197619566007%
+Epoch 0:
+save model at epoch 0
+	train loss:125775.7763  val ap:0.872377  val auc:0.911966
+	total time:277.001s sample time:46.772s prep time:225.514s
+Epoch 1:
+	train loss:75695.5901  val ap:0.860981  val auc:0.929756
+	total time:276.609s sample time:45.582s prep time:228.059s
+Epoch 2:
+	train loss:66431.3174  val ap:0.864930  val auc:0.929168
+	total time:265.120s sample time:45.297s prep time:217.450s
+Epoch 3:
+save model at epoch 3
+	train loss:62081.3628  val ap:0.876293  val auc:0.936263
+	total time:271.991s sample time:46.575s prep time:223.130s
+Epoch 4:
+	train loss:58943.8067  val ap:0.875425  val auc:0.935427
+	total time:271.381s sample time:45.720s prep time:222.889s
+Epoch 5:
+save model at epoch 5
+	train loss:57394.1461  val ap:0.882982  val auc:0.936808
+	total time:191.869s sample time:33.024s prep time:156.752s
+Epoch 6:
+save model at epoch 6
+	train loss:56786.0866  val ap:0.887086  val auc:0.938580
+	total time:173.981s sample time:29.728s prep time:141.541s
+Epoch 7:
+save model at epoch 7
+	train loss:56339.1744  val ap:0.896949  val auc:0.941733
+	total time:172.765s sample time:29.830s prep time:141.031s
+Epoch 8:
+save model at epoch 8
+	train loss:55937.4133  val ap:0.902182  val auc:0.941881
+	total time:171.981s sample time:29.004s prep time:140.584s
+Epoch 9:
+save model at epoch 9
+	train loss:54788.3875  val ap:0.903528  val auc:0.941924
+	total time:173.598s sample time:30.054s prep time:141.208s
+Epoch 10:
+save model at epoch 10
+	train loss:54615.5852  val ap:0.913148  val auc:0.946046
+	total time:171.945s sample time:29.469s prep time:139.843s
+Epoch 11:
+save model at epoch 11
+	train loss:54203.3270  val ap:0.915102  val auc:0.946492
+	total time:174.071s sample time:29.245s prep time:142.442s
+Epoch 12:
+	train loss:53085.0574  val ap:0.914514  val auc:0.946782
+	total time:172.968s sample time:29.651s prep time:140.993s
+Epoch 13:
+save model at epoch 13
+	train loss:52494.5041  val ap:0.917944  val auc:0.946463
+	total time:174.603s sample time:29.582s prep time:142.358s
+Epoch 14:
+save model at epoch 14
+	train loss:52921.1333  val ap:0.924873  val auc:0.951030
+	total time:171.098s sample time:28.593s prep time:140.023s
+Epoch 15:
+Traceback (most recent call last):
+  File "/home/wtx/workspace/cpp_project/tgl/train_cache.py", line 295, in <module>
+    ap, auc = eval('val')
+  File "/home/wtx/workspace/cpp_project/tgl/train_cache.py", line 164, in eval
+    aps.append(average_precision_score(y_true, y_pred))
+  File "/home/wtx/miniconda3/envs/dgl/lib/python3.10/site-packages/sklearn/utils/_param_validation.py", line 214, in wrapper
+    return func(*args, **kwargs)
+  File "/home/wtx/miniconda3/envs/dgl/lib/python3.10/site-packages/sklearn/metrics/_ranking.py", line 268, in average_precision_score
+    return _average_binary_score(
+  File "/home/wtx/miniconda3/envs/dgl/lib/python3.10/site-packages/sklearn/metrics/_base.py", line 75, in _average_binary_score
+    return binary_metric(y_true, y_score, sample_weight=sample_weight)
+  File "/home/wtx/miniconda3/envs/dgl/lib/python3.10/site-packages/sklearn/metrics/_ranking.py", line 230, in _binary_uninterpolated_average_precision
+    precision, recall, _ = precision_recall_curve(
+  File "/home/wtx/miniconda3/envs/dgl/lib/python3.10/site-packages/sklearn/utils/_param_validation.py", line 187, in wrapper
+    return func(*args, **kwargs)
+  File "/home/wtx/miniconda3/envs/dgl/lib/python3.10/site-packages/sklearn/metrics/_ranking.py", line 952, in precision_recall_curve
+    fps, tps, thresholds = _binary_clf_curve(
+  File "/home/wtx/miniconda3/envs/dgl/lib/python3.10/site-packages/sklearn/metrics/_ranking.py", line 810, in _binary_clf_curve
+    assert_all_finite(y_score)
+  File "/home/wtx/miniconda3/envs/dgl/lib/python3.10/site-packages/sklearn/utils/validation.py", line 200, in assert_all_finite
+    _assert_all_finite(
+  File "/home/wtx/miniconda3/envs/dgl/lib/python3.10/site-packages/sklearn/utils/validation.py", line 122, in _assert_all_finite
+    _assert_all_finite_element_wise(
+  File "/home/wtx/miniconda3/envs/dgl/lib/python3.10/site-packages/sklearn/utils/validation.py", line 171, in _assert_all_finite_element_wise
+    raise ValueError(msg_err)
+ValueError: Input contains NaN.

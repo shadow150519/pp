@@ -1,0 +1,71 @@
+dataset_name: cora
+feature_data:
+- domain: node
+  format: numpy
+  in_memory: true
+  name: feat
+  path: preprocessed/node-feat.npy
+  type: null
+graph_topology:
+  path: preprocessed/fused_csc_sampling_graph.pt
+  type: FusedCSCSamplingGraph
+include_original_edge_id: false
+tasks:
+- name: node_classification
+  num_classes: 7
+  test_set:
+  - data:
+    - format: numpy
+      in_memory: true
+      name: seeds
+      path: preprocessed/nodeclassification/test-node.npy
+    - format: numpy
+      in_memory: true
+      name: labels
+      path: preprocessed/nodeclassification/test-label.npy
+    type_name: null
+  train_set:
+  - data:
+    - format: numpy
+      in_memory: true
+      name: seeds
+      path: preprocessed/nodeclassification/train-node.npy
+    - format: numpy
+      in_memory: true
+      name: labels
+      path: preprocessed/nodeclassification/train-label.npy
+    type_name: null
+  validation_set:
+  - data:
+    - format: numpy
+      in_memory: true
+      name: seeds
+      path: preprocessed/nodeclassification/valid-node.npy
+    - format: numpy
+      in_memory: true
+      name: labels
+      path: preprocessed/nodeclassification/valid-label.npy
+    type_name: null
+- name: link_prediction
+  test_set:
+  - data:
+    - format: numpy
+      in_memory: true
+      name: seeds
+      path: preprocessed/linkprediction/test-seeds.npy
+    - format: numpy
+      in_memory: true
+      name: labels
+      path: preprocessed/linkprediction/test-labels.npy
+    - format: numpy
+      in_memory: true
+      name: indexes
+      path: preprocessed/linkprediction/test-indexes.npy
+    type_name: null
+  train_set:
+  - data:
+    - format: numpy
+      in_memory: true
+      name: seeds
+      path: preprocessed/linkprediction/train-seeds.npy
+    type_name: null

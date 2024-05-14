@@ -39,13 +39,16 @@ def set_seed(seed):
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
 
+
 set_seed(args.seed)
 torch.distributed.init_process_group(backend='gloo', timeout=datetime.timedelta(0, 3600))
 nccl_group = torch.distributed.new_group(ranks=list(range(args.num_gpus)), backend='nccl')
 
+# 读出features
 if args.local_rank == 0:
     _node_feats, _edge_feats = load_feat(args.data)
-dim_feats = [0, 0, 0, 0, 0, 0]
+dim_feats = [0, 0, 0, 0, 0, 0] # node_num, node_dim, node_dtype, egde_num, edge_dim, edge_dtype
+# 创建edge_feat和node_feat的shared memory
 if args.local_rank == 0:
     if _node_feats is not None:
         dim_feats[0] = _node_feats.shape[0]
@@ -65,8 +68,10 @@ if args.local_rank == 0:
         del _edge_feats
     else: 
         edge_feats = None
+
 torch.distributed.barrier()
 torch.distributed.broadcast_object_list(dim_feats, src=0)
+# 每个gpu获取到feature
 if args.local_rank > 0 and args.local_rank < args.num_gpus:
     node_feats = None
     edge_feats = None
@@ -76,6 +81,7 @@ if args.local_rank > 0 and args.local_rank < args.num_gpus:
         edge_feats = get_shared_mem_array('edge_feats', (dim_feats[3], dim_feats[4]), dtype=dim_feats[5])
 sample_param, memory_param, gnn_param, train_param = parse_config(args.config)
 orig_batch_size = train_param['batch_size']
+
 if args.local_rank == 0:
     if not os.path.isdir('models'):
         os.mkdir('models')
@@ -85,6 +91,7 @@ else:
 torch.distributed.broadcast_object_list(path_saver, src=0)
 path_saver = path_saver[0]
 
+# load tscr和edge
 if args.local_rank == args.num_gpus:
     g, df = load_graph(args.data)
     num_nodes = [g['indptr'].shape[0] - 1]
@@ -95,6 +102,7 @@ torch.distributed.broadcast_object_list(num_nodes, src=args.num_gpus)
 num_nodes = num_nodes[0]
 
 mailbox = None
+# 创建mailbox和memory
 if memory_param['type'] != 'none':
     if args.local_rank == 0:
         node_memory = create_shared_mem_array('node_memory', torch.Size([num_nodes, memory_param['dim_out']]), dtype=torch.float32)
@@ -103,7 +111,7 @@ if memory_param['type'] != 'none':
         mail_ts = create_shared_mem_array('mail_ts', torch.Size([num_nodes, memory_param['mailbox_size']]), dtype=torch.float32)
         next_mail_pos = create_shared_mem_array('next_mail_pos', torch.Size([num_nodes]), dtype=torch.long)
         update_mail_pos = create_shared_mem_array('update_mail_pos', torch.Size([num_nodes]), dtype=torch.int32)
-        torch.distributed.barrier()
+        torch.distributed.barrier() # 确保rank 0 process 把数据都创建好了之后其他的process才能去读取
         node_memory.zero_()
         node_memory_ts.zero_()
         mails.zero_()
@@ -174,8 +182,8 @@ class DataPipelineThread(threading.Thread):
 if args.local_rank < args.num_gpus:
     # GPU worker process
     model = GeneralModel(dim_feats[1], dim_feats[4], sample_param, memory_param, gnn_param, train_param).cuda()
-    find_unused_parameters = True if sample_param['history'] > 1 else False
-    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.local_rank], process_group=nccl_group, output_device=args.local_rank, find_unused_parameters=find_unused_parameters)
+    find_unused_parameters = True if sample_param['history'] > 1 else False # 是一个进程算一个snapshot吗
+    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.local_rank], process_group=nccl_group, output_device=args.local_rank, find_unused_parameters=True)
     creterion = torch.nn.BCEWithLogitsLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=train_param['lr'])
     pinned_nfeat_buffs, pinned_efeat_buffs = get_pinned_buffers(sample_param, train_param['batch_size'], node_feats, edge_feats)
@@ -183,11 +191,15 @@ if args.local_rank < args.num_gpus:
         mailbox.allocate_pinned_memory_buffers(sample_param, train_param['batch_size'])
     tot_loss = 0
     prev_thread = None
+    time_backward = 0
     while True:
         my_model_state = [None]
         model_state = [None] * (args.num_gpus + 1)
         torch.distributed.scatter_object_list(my_model_state, model_state, src=args.num_gpus)
         if my_model_state[0] == -1:
+            print(f"rank: {args.local_rank} statistic:")
+            model.module.report_statistic(train_param['epoch'],mailbox.time_memory,mailbox.time_message)
+            print(f"\t time_backward:{time_backward / train_param['epoch']} s")
             break
         elif my_model_state[0] == 4:
             continue
@@ -201,7 +213,7 @@ if args.local_rank < args.num_gpus:
             torch.distributed.gather_object(float(tot_loss), None, dst=args.num_gpus)
             tot_loss = 0
             continue
-        elif my_model_state[0] == 0:
+        elif my_model_state[0] == 0: # 训练
             if prev_thread is not None:
                 my_mfgs = [None]
                 multi_mfgs = [None] * (args.num_gpus + 1)
@@ -270,7 +282,7 @@ if args.local_rank < args.num_gpus:
                 stream = torch.cuda.Stream()
                 prev_thread = DataPipelineThread(my_mfgs, my_root, my_ts, my_eid, my_block, stream)
                 prev_thread.start()
-        elif my_model_state[0] == 1:
+        elif my_model_state[0] == 1: # 评估
             if prev_thread is not None:
                 # finish last training mini-batch
                 prev_thread.join()
@@ -280,8 +292,10 @@ if args.local_rank < args.num_gpus:
                 pred_pos, pred_neg = model(mfgs)
                 loss = creterion(pred_pos, torch.ones_like(pred_pos))
                 loss += creterion(pred_neg, torch.zeros_like(pred_neg))
+                t_b_start = time.time()
                 loss.backward()
                 optimizer.step()
+                time_backward += time.time() - t_b_start
                 with torch.no_grad():
                     tot_loss += float(loss)
                 if mailbox is not None:
@@ -346,7 +360,7 @@ else:
     val_edge_end = df[df['ext_roll'].gt(1)].index[0]
     sampler = None
     if not ('no_sample' in sample_param and sample_param['no_sample']):
-        sampler = ParallelSampler(g['indptr'], g['indices'], g['eid'], g['ts'].astype(np.float32),
+        sampler = ParallelSamplerWrap(g['indptr'], g['indices'], g['eid'], g['ts'].astype(np.float32),
                                   sample_param['num_thread'], 1, sample_param['layer'], sample_param['neighbor'],
                                   sample_param['strategy']=='recent', sample_param['prop_time'],
                                   sample_param['history'], float(sample_param['duration']))
@@ -430,6 +444,7 @@ else:
     best_e = 0
     tap = 0
     tauc = 0
+    n_epoch = train_param['epoch']
     for e in range(train_param['epoch']):
         print('Epoch {:d}:'.format(e))
         time_sample = 0
@@ -440,7 +455,8 @@ else:
             mailbox.reset()
         # training
         train_param['batch_size'] = orig_batch_size
-        itr_tot = train_edge_end // train_param['batch_size'] // args.num_gpus * args.num_gpus
+        # 3900 // 500 // 4 * 4 = 4，but shoulbe be 8 ?
+        itr_tot = train_edge_end // train_param['batch_size'] // args.num_gpus * args.num_gpus # 这里算出来最多会少掉n个batch
         train_param['batch_size'] = math.ceil(train_edge_end / itr_tot)
         multi_mfgs = list()
         multi_root = list()
@@ -448,7 +464,7 @@ else:
         multi_eid = list()
         multi_block = list()
         group_indexes = list()
-        group_indexes.append(np.array(df[:train_edge_end].index // train_param['batch_size']))
+        group_indexes.append(np.array(df[:train_edge_end].index // train_param['batch_size'])) # 相当于是一个mask数组，指示了如何划分group
         if 'reorder' in train_param:
             # random chunk shceduling
             reorder = train_param['reorder']
@@ -462,8 +478,9 @@ else:
             for i in range(1, train_param['reorder']):
                 additional_idx = np.zeros(train_param['batch_size'] // train_param['reorder'] * i) - 1
                 group_indexes.append(np.concatenate([additional_idx, base_idx])[:base_idx.shape[0]])
+        
         with tqdm(total=itr_tot + max((val_edge_end - train_edge_end) // train_param['batch_size'] // args.num_gpus, 1) * args.num_gpus) as pbar:
-            for _, rows in df[:train_edge_end].groupby(group_indexes[random.randint(0, len(group_indexes) - 1)]):
+            for _, rows in df[:train_edge_end].groupby(group_indexes[random.randint(0, len(group_indexes) - 1)]): # rows 代表一个batch的事件
                 t_tot_s = time.time()
                 root_nodes = np.concatenate([rows.src.values, rows.dst.values, neg_link_sampler.sample(len(rows))]).astype(np.int32)
                 ts = np.concatenate([rows.time.values, rows.time.values, rows.time.values]).astype(np.float32)
@@ -485,9 +502,11 @@ else:
                 multi_eid.append(rows['Unnamed: 0'].values)
                 if mailbox is not None and memory_param['deliver_to'] == 'neighbors':
                     multi_block.append(to_dgl_blocks(ret, sample_param['history'], reverse=True, cuda=False)[0][0])
-                if len(multi_mfgs) == args.num_gpus:
+                if len(multi_mfgs) == args.num_gpus: # 采样了num_gpus个batch之后，开始一次数据并行
+                    # 设置为0，让训练process开始训练
                     model_state = [0] * (args.num_gpus + 1)
                     my_model_state = [None]
+                    # 广播给trainer process
                     torch.distributed.scatter_object_list(my_model_state, model_state, src=args.num_gpus)
                     multi_mfgs.append(None)
                     my_mfgs = [None]
@@ -514,18 +533,18 @@ else:
                 pbar.update(1)
                 time_tot += time.time() - t_tot_s
             print('Training time:',time_tot)
-            model_state = [5] * (args.num_gpus + 1)
+            model_state = [5] * (args.num_gpus + 1) # 通知trainer process gather loss
             my_model_state = [None]
             torch.distributed.scatter_object_list(my_model_state, model_state, src=args.num_gpus)
             gathered_loss = [None] * (args.num_gpus + 1)
-            torch.distributed.gather_object(float(0), gathered_loss, dst=args.num_gpus)
+            torch.distributed.gather_object(float(0), gathered_loss, dst=args.num_gpus) # 每个线程获得gather完的loss，host的loss是0
             total_loss = np.sum(np.array(gathered_loss) * train_param['batch_size'])
             ap, auc = eval('val')
             if ap > best_ap:
                 best_e = e
                 best_ap = ap
-                model_state = [4] * (args.num_gpus + 1)
-                model_state[0] = 2
+                model_state = [4] * (args.num_gpus + 1) 
+                model_state[0] = 2 # 让0号GPU保存模型参数
                 my_model_state = [None]
                 torch.distributed.scatter_object_list(my_model_state, model_state, src=args.num_gpus)
                 # for memory based models, testing after validation is faster
@@ -535,6 +554,7 @@ else:
 
     print('Best model at epoch {}.'.format(best_e))
     print('\ttest ap:{:4f}  test auc:{:4f}'.format(tap, tauc))
+    sampler.report_statistic(n_epoch=n_epoch)
 
     # let all process exit
     model_state = [-1] * (args.num_gpus + 1)

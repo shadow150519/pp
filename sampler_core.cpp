@@ -1,3 +1,4 @@
+#include <cstdio>
 #include <iostream>
 #include <string>
 #include <cstdlib>
@@ -14,16 +15,17 @@ typedef int NodeIDType;
 typedef int EdgeIDType;
 typedef float TimeStampType;
 
-class TemporalGraphBlock
+
+class TemporalGraphBlock // COO格式的采样
 {
     public:
-        std::vector<NodeIDType> row;
-        std::vector<NodeIDType> col;
-        std::vector<EdgeIDType> eid;
-        std::vector<TimeStampType> ts;
-        std::vector<TimeStampType> dts;
-        std::vector<NodeIDType> nodes;
-        NodeIDType dim_in, dim_out;
+        std::vector<NodeIDType> row;  // 0 0 0 0 1 1 1 1 .... 299 299 299， 假设有300个node
+        std::vector<NodeIDType> col;  // 0 1 2 3 4 5 6 7
+        std::vector<EdgeIDType> eid;  
+        std::vector<TimeStampType> ts; 
+        std::vector<TimeStampType> dts; 
+        std::vector<NodeIDType> nodes; 
+        NodeIDType dim_in, dim_out; // 一共是dim_out个root_node， 需要为每个root_node采样dim_in个1-hop neighbor
         double ptr_time = 0;
         double search_time = 0;
         double sample_time = 0;
@@ -43,22 +45,27 @@ class TemporalGraphBlock
 class ParallelSampler
 {
     public:
+        // tcsr
         std::vector<EdgeIDType> indptr;
         std::vector<EdgeIDType> indices;
         std::vector<EdgeIDType> eid;
         std::vector<TimeStampType> ts;
         NodeIDType num_nodes;
         EdgeIDType num_edges;
+
+        // omp
         int num_thread_per_worker;
         int num_workers;
         int num_threads;
+        
+        // sampler 
         int num_layers;
         std::vector<int> num_neighbors;
         bool recent;
-        bool prop_time;
+        bool prop_time; // ??? 只有dysat设置了true
         int num_history;
         TimeStampType window_duration;
-        std::vector<std::vector<std::vector<EdgeIDType>::size_type>> ts_ptr;
+        std::vector<std::vector<std::vector<EdgeIDType>::size_type>> ts_ptr; // (num_snapshot, num_nodes) 表示了第几个快照, num_nodes可以看到哪个时间
         omp_lock_t *ts_ptr_lock;
         std::vector<TemporalGraphBlock> ret;
 
@@ -79,13 +86,18 @@ class ParallelSampler
             ts_ptr_lock = (omp_lock_t *)malloc(num_nodes * sizeof(omp_lock_t));
             for (int i = 0; i < num_nodes; i++)
                 omp_init_lock(&ts_ptr_lock[i]);
-            ts_ptr.resize(num_history + 1);
-            for (auto it = ts_ptr.begin(); it != ts_ptr.end(); it++)
-            {
-                it->resize(indptr.size() - 1);
-#pragma omp parallel for
-                for (auto itt = indptr.begin(); itt < indptr.end() - 1; itt++)
-                    (*it)[itt - indptr.begin()] = *itt;
+            ts_ptr.resize(num_history + 1); // num_history + 1是因为最后一个快照包含当前graph的全部状态
+//            for (auto i = indptr.begin(); i < indptr.begin() + 10; i++) {
+//                printf("indptr[%lu] = %d\n", i - indptr.begin(), *i);
+//            }
+            for (auto it = ts_ptr.begin(); it != ts_ptr.end(); it++) // 遍历所有的snapshot
+            { 
+                it->resize(indptr.size() - 1); // num_nodes
+#pragma omp parallel for 
+                for (auto itt = indptr.begin(); itt < indptr.end() - 1; itt++){ // 遍历所有的node,表示
+                    (*it)[itt - indptr.begin()] = *itt; // 把每个snapshot指针数组初始化为csr数组
+                }
+
             }
         }
 
@@ -100,25 +112,30 @@ class ParallelSampler
             }
         }
 
+        // 根据这一个batch的数据更新ts
         void update_ts_ptr(int slc, std::vector<NodeIDType> &root_nodes, 
                            std::vector<TimeStampType> &root_ts, float offset)
         {
 #pragma omp parallel for schedule(static, int(ceil(static_cast<float>(root_nodes.size()) / num_threads)))
             for (std::vector<NodeIDType>::size_type i = 0; i < root_nodes.size(); i++)
-            {
+            {   
                 NodeIDType n = root_nodes[i];
+                //printf("root_nodes[%d] is %d\n", i, n);
                 omp_set_lock(&(ts_ptr_lock[n]));
+                // 遍历这个node所有的边，找到在这个snapshot中，node n只能看到indprt的哪个索引,ts_ptr[slc][n]指的是slc个snapshot的n号node从哪里开始看起
                 for (std::vector<EdgeIDType>::size_type j = ts_ptr[slc][n]; j < indptr[n + 1]; j++)
                 {
-                    // std::cout << "comparing " << ts[j] << " with " << root_ts[i] << std::endl;
-                    if (ts[j] > (root_ts[i] + offset - 1e-7f))
+                    //std::cout << "node " << n << " comparing " << ts[j] << " with " << root_ts[i] << " with offset " << offset << " and slc " << slc <<  std::endl;
+                    if (ts[j] > (root_ts[i] + offset - 1e-7f)) // ts 不能超过snapshot的时间 例如root_ts[i] = 250，一个snapshot是100，那么在采样上一个snapshot的时候，只能看到150
                     {
                         if (j != ts_ptr[slc][n])
+                            //printf("update ts_ptr[%d][%d] from %lu to %lu\n", slc,n, ts_ptr[slc][n], j - 1);
                             ts_ptr[slc][n] = j - 1;
                         break;
                     }
                     if (j == indptr[n + 1] - 1)
                     {
+                        //printf("update ts_ptr[%d][%d] from %lu to %lu because of get the end of indptr\n", slc,n, ts_ptr[slc][n], j);
                         ts_ptr[slc][n] = j;
                     }
                 }
@@ -131,15 +148,15 @@ class ParallelSampler
                                  std::vector<TimeStampType> *_dts, std::vector<NodeIDType> *_nodes, 
                                  EdgeIDType &k, TimeStampType &src_ts, int &row_id)
         {
-            _row->push_back(row_id);
-            _col->push_back(_nodes->size());
+            _row->push_back(row_id); // root_node local id
+            _col->push_back(_nodes->size()); 
             _eid->push_back(eid[k]);
             if (prop_time)
                 _ts->push_back(src_ts);
             else
                 _ts->push_back(ts[k]);
             _dts->push_back(src_ts - ts[k]);
-            _nodes->push_back(indices[k]);
+            _nodes->push_back(indices[k]); // 采样了哪个node
             // _row.push_back(0);
             // _col.push_back(0);
             // _eid.push_back(0);
@@ -161,25 +178,27 @@ class ParallelSampler
             std::vector<EdgeIDType> cum_row, cum_col;
             cum_row.push_back(0);
             cum_col.push_back(0);
+            // 计算前缀和数据，总共有多少个root_node(cum_row) 和sample_node(cum_col)
             for (int tid = 0; tid < num_threads; tid++)
             {
                 // std::cout<<tid<<" here "<<_out_nodes[tid]<<std::endl;  
-                cum_row.push_back(cum_row.back() + _out_nodes[tid]);
+                cum_row.push_back(cum_row.back() + _out_nodes[tid]);  
                 cum_col.push_back(cum_col.back() + _col[tid]->size());
             }
             int num_root_nodes = _ret.nodes.size();
             _ret.row.resize(cum_col.back());
             _ret.col.resize(cum_col.back());
             _ret.eid.resize(cum_col.back());
+            // ret[:num_root_nodes]存的是采样的root_node，但是row, col, 和eid不需要了
             _ret.ts.resize(cum_col.back() + num_root_nodes);
             _ret.dts.resize(cum_col.back() + num_root_nodes);
             _ret.nodes.resize(cum_col.back() + num_root_nodes);
 #pragma omp parallel for schedule(static, 1)
             for (int tid = 0; tid < num_threads; tid++)
             {
-                std::transform(_row[tid]->begin(), _row[tid]->end(), _row[tid]->begin(),
+                std::transform(_row[tid]->begin(), _row[tid]->end(), _row[tid]->begin(),  // 0 - num_root_node
                                [&](auto &v){ return v + cum_row[tid]; });
-                std::transform(_col[tid]->begin(), _col[tid]->end(), _col[tid]->begin(),
+                std::transform(_col[tid]->begin(), _col[tid]->end(), _col[tid]->begin(),  // 0 - total_sample
                                [&](auto &v){ return v + cum_col[tid] + num_root_nodes; });
                 std::copy(_row[tid]->begin(), _row[tid]->end(), _ret.row.begin() + cum_col[tid]);
                 std::copy(_col[tid]->begin(), _col[tid]->end(), _ret.col.begin() + cum_col[tid]);
@@ -195,9 +214,13 @@ class ParallelSampler
                 delete _nodes[tid];
             }
             _ret.dim_in = _ret.nodes.size();
-            _ret.dim_out = cum_row.back();
+            _ret.dim_out = cum_row.back(); 
         }
 
+
+
+        // use_ptr是什么 ? 好像是判断要不要用那个ts数组 if ((first_layer) || ((prop_time) && num_history == 1) || (recent))
+        // 为了所有的snapshot采样一层
         void sample_layer(std::vector<NodeIDType> &_root_nodes, std::vector<TimeStampType> &_root_ts,
                           int neighs, bool use_ptr, bool from_root)
         {
@@ -210,16 +233,19 @@ class ParallelSampler
                 root_ts = &_root_ts;
             }
             double t_ptr_s = omp_get_wtime();
-            if (use_ptr)
+            if (use_ptr) 
                 update_ts_ptr(num_history, *root_nodes, *root_ts, 0);
             ret[0].ptr_time += omp_get_wtime() - t_ptr_s;
+            // 给每个snapshot采样
             for (int i = 0; i < num_history; i++)
             {
                 if (!from_root)
-                {
+                {   // 获取到这一个层的root_node和ts
+                    // snapshot是从snapshot3开始往snapshot0拿
                     root_nodes = &(ret[ret.size() - 1 - i - num_history].nodes);
                     root_ts = &(ret[ret.size() - 1 - i - num_history].ts);
                 }
+                // 
                 TimeStampType offset = -i * window_duration;
                 t_ptr_s = omp_get_wtime();
                 if ((use_ptr) && (std::abs(window_duration) > 1e-7f))
@@ -232,7 +258,10 @@ class ParallelSampler
                 std::vector<TimeStampType> *_dts[num_threads];
                 std::vector<NodeIDType> *_nodes[num_threads];
                 std::vector<int> _out_node(num_threads, 0);
-                int reserve_capacity = int(ceil((*root_nodes).size() / num_threads)) * neighs;
+                
+                // 每个线程要有多少的容量
+                int reserve_capacity = int(ceil(static_cast<float>((*root_nodes).size()) / num_threads))*neighs;
+                // int reserve_capacity = int(ceil((*root_nodes).size() / num_threads)) * neighs;
 #pragma omp parallel
                 {
                     int tid = omp_get_thread_num();
@@ -250,16 +279,16 @@ class ParallelSampler
                     _dts[tid]->reserve(reserve_capacity);
                     _nodes[tid]->reserve(reserve_capacity);
 // #pragma omp critical
-//                     std::cout<<tid<<" sampling: "<<root_nodes->size()<<" "<<int(ceil((*root_nodes).size() / num_threads))<<std::endl;
+// std::cout<<tid<<" sampling: "<<root_nodes->size()<<" "<<int(ceil((*root_nodes).size() / num_threads))<<std::endl;
 #pragma omp for schedule(static, int(ceil(static_cast<float>((*root_nodes).size()) / num_threads)))
-                    for (std::vector<NodeIDType>::size_type j = 0; j < (*root_nodes).size(); j++)
+                    for (std::vector<NodeIDType>::size_type j = 0; j < (*root_nodes).size(); j++) // 每个线程负责一个root的采样
                     {
                         NodeIDType n = (*root_nodes)[j];
                         // if (tid == 16)
                         //     std::cout << _out_node[tid] << " " <<j << " " << n << std::endl;
                         TimeStampType nts = (*root_ts)[j];
-                        EdgeIDType s_search, e_search;
-                        if (use_ptr)
+                        EdgeIDType s_search, e_search; // [start, end)
+                        if (use_ptr) 
                         {
                             s_search = ts_ptr[num_history - 1 - i][n];
                             e_search = ts_ptr[num_history - i][n];
@@ -313,7 +342,7 @@ class ParallelSampler
                                 if (ts[picked] < nts + offset - 1e-7f)
                                 {
                                     add_neighbor(_row[tid], _col[tid], _eid[tid], _ts[tid], 
-                                                 _dts[tid], _nodes[tid], picked, nts, _out_node[tid]);
+                                                 _dts[tid], _nodes[tid], picked, nts, _out_node[tid]); // _out_nodes[tid]表示一个thread 负责的local id
                                 }
                             }
                         }
@@ -322,6 +351,7 @@ class ParallelSampler
                             ret[0].sample_time += omp_get_wtime() - t_sample_s;
                     }
                 }
+
                 double t_coo_s = omp_get_wtime();
                 ret[ret.size() - 1 - i].ts.insert(ret[ret.size() - 1 - i].ts.end(), 
                                                   root_ts->begin(), root_ts->end());
@@ -342,9 +372,9 @@ class ParallelSampler
             bool first_layer = true;
             bool use_ptr = false;
             for (int i = 0; i < num_layers; i++)
-            {
-                ret.resize(ret.size() + num_history);
-                if ((first_layer) || ((prop_time) && num_history == 1) || (recent))
+            { 
+                ret.resize(ret.size() + num_history); // 不断的添加新的一层的采样结果 ret的结构是 (layer1-snapshot1 layer1-snapshot2 layer1-snapshot3 layer2-snapshot1 layer2-snapshot2 layer2-snapshot3)
+                if ((first_layer) || ((prop_time) && num_history == 1) || (recent)) // 这三个条件为什么要use_ptr呢
                 {
                     first_layer = false;
                     use_ptr = true;

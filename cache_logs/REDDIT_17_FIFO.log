@@ -1,0 +1,60 @@
+Cache: keySize: 4, valueSize: 688, dim: 172, capacity: 131072, maxQueryNum: 65536, deviceId: 0
+has edge feature
+total 470713 for train, can cache 131072, 0.2784541748368964%
+Epoch 0:
+save model at epoch 0
+	train loss:200135.3205  val ap:0.986616  val auc:0.990959
+	total time:1164.826s sample time:196.434s prep time:952.727s
+Epoch 1:
+save model at epoch 1
+	train loss:115010.1479  val ap:0.990385  val auc:0.992973
+	total time:846.793s sample time:143.775s prep time:690.552s
+Epoch 2:
+save model at epoch 2
+	train loss:109465.1067  val ap:0.993094  val auc:0.994615
+	total time:740.261s sample time:125.809s prep time:603.168s
+Epoch 3:
+save model at epoch 3
+	train loss:109709.1071  val ap:0.993858  val auc:0.995233
+	total time:708.029s sample time:118.877s prep time:577.162s
+Epoch 4:
+	train loss:96680.7294  val ap:0.993764  val auc:0.995212
+	total time:626.947s sample time:105.086s prep time:511.415s
+Epoch 5:
+save model at epoch 5
+	train loss:92042.5621  val ap:0.994531  val auc:0.995705
+	total time:443.254s sample time:73.180s prep time:360.311s
+Epoch 6:
+save model at epoch 6
+	train loss:91290.0793  val ap:0.994738  val auc:0.996114
+	total time:436.887s sample time:72.256s prep time:354.775s
+Epoch 7:
+save model at epoch 7
+	train loss:84657.6116  val ap:0.995309  val auc:0.996203
+	total time:378.369s sample time:62.089s prep time:307.051s
+Epoch 8:
+save model at epoch 8
+	train loss:83159.9926  val ap:0.996134  val auc:0.996926
+	total time:286.101s sample time:46.950s prep time:231.961s
+Epoch 9:
+	train loss:77819.0058  val ap:0.996056  val auc:0.996745
+	total time:330.978s sample time:55.151s prep time:267.476s
+Epoch 10:
+	train loss:78532.4199  val ap:0.995768  val auc:0.996641
+	total time:267.454s sample time:43.741s prep time:216.438s
+Epoch 11:
+	train loss:79283.7236  val ap:0.995807  val auc:0.996647
+	total time:221.502s sample time:35.650s prep time:179.484s
+ap don't improve in 3 epoches, early stop
+average statistics: 
+	 average_prep time: 437.7099600434303
+	 time_total 80.642 s
+	total sample time: 16.272 s
+	total sample node: 257211.0, self._n_sample_per_node [10]
+	 time_forward: 0.421
+	 time_memory: 4.765
+	 time_message: 4.654
+	 time_backward 0.810s
+	 time_message 46.330s
+Loading model at epoch 8...
+	test AP:0.994918  test AUC:0.996223

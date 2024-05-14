@@ -13,24 +13,43 @@ df = pd.read_csv('DATA/{}/edges.csv'.format(args.data))
 num_nodes = max(int(df['src'].max()), int(df['dst'].max())) + 1
 print('num_nodes: ', num_nodes)
 
-int_train_indptr = np.zeros(num_nodes + 1, dtype=np.int)
+int_train_indptr = np.zeros(num_nodes + 1, dtype=int)
 int_train_indices = [[] for _ in range(num_nodes)]
 int_train_ts = [[] for _ in range(num_nodes)]
 int_train_eid = [[] for _ in range(num_nodes)]
 
-int_full_indptr = np.zeros(num_nodes + 1, dtype=np.int)
+int_full_indptr = np.zeros(num_nodes + 1, dtype=int)
 int_full_indices = [[] for _ in range(num_nodes)]
 int_full_ts = [[] for _ in range(num_nodes)]
 int_full_eid = [[] for _ in range(num_nodes)]
 
-ext_full_indptr = np.zeros(num_nodes + 1, dtype=np.int)
+ext_full_indptr = np.zeros(num_nodes + 1, dtype=int)
 ext_full_indices = [[] for _ in range(num_nodes)]
 ext_full_ts = [[] for _ in range(num_nodes)]
 ext_full_eid = [[] for _ in range(num_nodes)]
 
+node_id = 0
+node_id_map = {}
+edge_id = 0
 for idx, row in tqdm(df.iterrows(), total=len(df)):
     src = int(row['src'])
     dst = int(row['dst'])
+    if src not in node_id_map:
+        node_id_map[src] = node_id
+        src = node_id
+        node_id = node_id + 1
+    else:
+        src = node_id_map[src]
+    
+    if dst not in node_id_map:
+        node_id_map[dst] = node_id
+        dst = node_id
+        node_id = node_id + 1
+    else:
+        dst = node_id_map[dst]
+    
+    
+    
     if row['int_roll'] == 0:
         int_train_indices[src].append(dst)
         int_train_ts[src].append(row['time'])

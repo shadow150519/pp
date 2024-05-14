@@ -1,0 +1,539 @@
+has edge feature
+total 110232 for train, can cache 16384, 0.14863197619566007%
+Epoch 0:
+save model at epoch 0
+	train loss:131961.4604  val ap:0.867807  val auc:0.905317
+	total time:255.615s sample time:42.913s prep time:207.883s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 1:
+	train loss:77031.5127  val ap:0.863522  val auc:0.930033
+	total time:256.289s sample time:43.420s prep time:209.660s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 2:
+save model at epoch 2
+	train loss:67494.6729  val ap:0.869163  val auc:0.931462
+	total time:255.696s sample time:43.359s prep time:209.314s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 3:
+save model at epoch 3
+	train loss:61616.7885  val ap:0.884848  val auc:0.938722
+	total time:249.090s sample time:42.991s prep time:203.608s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 4:
+save model at epoch 4
+	train loss:59476.6200  val ap:0.892255  val auc:0.940525
+	total time:250.235s sample time:42.741s prep time:204.721s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 5:
+save model at epoch 5
+	train loss:57324.9535  val ap:0.900165  val auc:0.943130
+	total time:251.390s sample time:42.238s prep time:206.364s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 6:
+save model at epoch 6
+	train loss:56536.9065  val ap:0.907714  val auc:0.944703
+	total time:251.901s sample time:43.274s prep time:205.639s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 7:
+save model at epoch 7
+	train loss:55312.3029  val ap:0.908605  val auc:0.944783
+	total time:253.635s sample time:43.048s prep time:207.904s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 8:
+save model at epoch 8
+	train loss:55091.3548  val ap:0.915375  val auc:0.947900
+	total time:250.545s sample time:41.978s prep time:205.639s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 9:
+	train loss:54547.7834  val ap:0.912878  val auc:0.945983
+	total time:270.197s sample time:46.875s prep time:220.801s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 10:
+save model at epoch 10
+	train loss:53794.9163  val ap:0.916630  val auc:0.947737
+	total time:286.306s sample time:48.930s prep time:234.498s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 11:
+save model at epoch 11
+	train loss:52863.0028  val ap:0.916758  val auc:0.948798
+	total time:287.697s sample time:48.282s prep time:237.000s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 12:
+save model at epoch 12
+	train loss:52345.4676  val ap:0.918695  val auc:0.950234
+	total time:294.869s sample time:50.201s prep time:241.992s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 13:
+save model at epoch 13
+	train loss:52049.4068  val ap:0.919425  val auc:0.950929
+	total time:294.720s sample time:50.839s prep time:241.231s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 14:
+save model at epoch 14
+	train loss:51532.3324  val ap:0.922843  val auc:0.952064
+	total time:307.777s sample time:52.239s prep time:252.922s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 15:
+save model at epoch 15
+	train loss:51194.9467  val ap:0.923242  val auc:0.952205
+	total time:395.176s sample time:66.843s prep time:325.097s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 16:
+save model at epoch 16
+	train loss:50893.9629  val ap:0.931253  val auc:0.956247
+	total time:437.602s sample time:72.166s prep time:360.718s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 17:
+save model at epoch 17
+	train loss:49808.2270  val ap:0.933830  val auc:0.956746
+	total time:516.398s sample time:91.185s prep time:420.935s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 18:
+save model at epoch 18
+	train loss:49851.5984  val ap:0.944887  val auc:0.961331
+	total time:528.412s sample time:90.461s prep time:434.232s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 19:
+save model at epoch 19
+	train loss:49195.3816  val ap:0.952377  val auc:0.965828
+	total time:546.635s sample time:92.586s prep time:449.628s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 20:
+save model at epoch 20
+	train loss:47229.0592  val ap:0.959725  val auc:0.970247
+	total time:520.582s sample time:87.037s prep time:429.139s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 21:
+	train loss:46300.8878  val ap:0.959341  val auc:0.971015
+	total time:524.884s sample time:88.208s prep time:432.981s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 22:
+save model at epoch 22
+	train loss:44704.8300  val ap:0.963138  val auc:0.973368
+	total time:540.415s sample time:93.851s prep time:442.345s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 23:
+	train loss:44011.8882  val ap:0.962622  val auc:0.973198
+	total time:524.925s sample time:89.915s prep time:431.048s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 24:
+save model at epoch 24
+	train loss:43765.3126  val ap:0.966885  val auc:0.976255
+	total time:538.873s sample time:91.615s prep time:443.505s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 25:
+save model at epoch 25
+	train loss:43147.7382  val ap:0.968640  val auc:0.976997
+	total time:544.862s sample time:92.561s prep time:448.487s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 26:
+save model at epoch 26
+	train loss:42278.9130  val ap:0.970915  val auc:0.978094
+	total time:542.727s sample time:96.630s prep time:442.430s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 27:
+save model at epoch 27
+	train loss:42262.1598  val ap:0.972303  val auc:0.979072
+	total time:529.132s sample time:89.102s prep time:436.109s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 28:
+save model at epoch 28
+	train loss:41621.1348  val ap:0.975696  val auc:0.980966
+	total time:525.773s sample time:87.787s prep time:433.353s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 29:
+	train loss:41132.4303  val ap:0.974865  val auc:0.981095
+	total time:460.289s sample time:77.094s prep time:378.523s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 30:
+	train loss:40319.4341  val ap:0.975577  val auc:0.981573
+	total time:440.040s sample time:74.517s prep time:360.910s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 31:
+save model at epoch 31
+	train loss:40480.4618  val ap:0.976858  val auc:0.982292
+	total time:443.277s sample time:73.989s prep time:364.992s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 32:
+save model at epoch 32
+	train loss:40004.9621  val ap:0.977067  val auc:0.982099
+	total time:440.233s sample time:73.825s prep time:361.230s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 33:
+	train loss:39501.4832  val ap:0.976895  val auc:0.982535
+	total time:443.779s sample time:73.980s prep time:364.909s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 34:
+save model at epoch 34
+	train loss:39294.7372  val ap:0.980072  val auc:0.983907
+	total time:441.943s sample time:75.830s prep time:360.449s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 35:
+	train loss:38330.8398  val ap:0.979650  val auc:0.983820
+	total time:425.837s sample time:71.547s prep time:347.583s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 36:
+	train loss:38624.4492  val ap:0.979904  val auc:0.984379
+	total time:434.554s sample time:74.076s prep time:354.046s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 37:
+save model at epoch 37
+	train loss:37982.6175  val ap:0.980918  val auc:0.984618
+	total time:439.397s sample time:75.842s prep time:357.939s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 38:
+	train loss:37869.1412  val ap:0.980473  val auc:0.984771
+	total time:434.026s sample time:74.627s prep time:352.510s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 39:
+save model at epoch 39
+	train loss:37141.3711  val ap:0.982860  val auc:0.985676
+	total time:444.395s sample time:75.597s prep time:363.386s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 40:
+save model at epoch 40
+	train loss:36709.5658  val ap:0.983259  val auc:0.986681
+	total time:433.039s sample time:73.606s prep time:353.009s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 41:
+save model at epoch 41
+	train loss:36456.5290  val ap:0.983501  val auc:0.986571
+	total time:435.790s sample time:73.557s prep time:354.990s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 42:
+save model at epoch 42
+	train loss:37188.4926  val ap:0.983978  val auc:0.986793
+	total time:441.817s sample time:75.118s prep time:361.744s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 43:
+save model at epoch 43
+	train loss:36074.6498  val ap:0.984078  val auc:0.987037
+	total time:436.336s sample time:72.583s prep time:357.568s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 44:
+save model at epoch 44
+	train loss:35773.5798  val ap:0.984575  val auc:0.987325
+	total time:444.656s sample time:73.134s prep time:365.371s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 45:
+	train loss:35649.3484  val ap:0.983467  val auc:0.986934
+	total time:425.326s sample time:70.007s prep time:348.917s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 46:
+save model at epoch 46
+	train loss:35340.5134  val ap:0.986214  val auc:0.988484
+	total time:432.270s sample time:72.038s prep time:353.476s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 47:
+	train loss:35116.4692  val ap:0.985346  val auc:0.988293
+	total time:450.967s sample time:73.690s prep time:368.385s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 48:
+	train loss:35005.7414  val ap:0.986098  val auc:0.988241
+	total time:462.027s sample time:75.463s prep time:378.714s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 49:
+save model at epoch 49
+	train loss:35174.8173  val ap:0.986510  val auc:0.988991
+	total time:460.290s sample time:77.685s prep time:374.886s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 50:
+	train loss:34799.8595  val ap:0.986277  val auc:0.988647
+	total time:468.837s sample time:79.116s prep time:381.613s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 51:
+save model at epoch 51
+	train loss:33934.5756  val ap:0.987063  val auc:0.989171
+	total time:456.016s sample time:77.746s prep time:369.830s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 52:
+	train loss:34073.7737  val ap:0.986391  val auc:0.988916
+	total time:340.699s sample time:55.437s prep time:276.847s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 53:
+	train loss:33980.7551  val ap:0.987054  val auc:0.988981
+	total time:383.412s sample time:64.213s prep time:311.197s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 54:
+save model at epoch 54
+	train loss:33564.2371  val ap:0.988678  val auc:0.990199
+	total time:437.563s sample time:72.363s prep time:357.190s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 55:
+	train loss:33209.6358  val ap:0.987976  val auc:0.989692
+	total time:438.659s sample time:72.594s prep time:358.438s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 56:
+	train loss:33424.5257  val ap:0.987478  val auc:0.989439
+	total time:449.136s sample time:74.701s prep time:365.991s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 57:
+	train loss:33383.8971  val ap:0.988260  val auc:0.989904
+	total time:493.137s sample time:81.826s prep time:402.467s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 58:
+	train loss:32926.0599  val ap:0.987840  val auc:0.989681
+	total time:492.152s sample time:83.255s prep time:401.221s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 59:
+save model at epoch 59
+	train loss:32717.9544  val ap:0.988699  val auc:0.990265
+	total time:482.684s sample time:81.285s prep time:393.990s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 60:
+	train loss:32700.2659  val ap:0.987896  val auc:0.989878
+	total time:499.125s sample time:83.767s prep time:405.310s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 61:
+	train loss:32384.3087  val ap:0.986305  val auc:0.988745
+	total time:490.370s sample time:82.283s prep time:399.902s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 62:
+save model at epoch 62
+	train loss:32584.1923  val ap:0.988742  val auc:0.990284
+	total time:497.028s sample time:84.551s prep time:404.290s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 63:
+	train loss:32355.7566  val ap:0.988508  val auc:0.990092
+	total time:490.615s sample time:81.321s prep time:402.279s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 64:
+	train loss:32030.4137  val ap:0.988664  val auc:0.990205
+	total time:508.358s sample time:84.309s prep time:415.778s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 65:
+	train loss:31907.3443  val ap:0.987074  val auc:0.989439
+	total time:504.004s sample time:87.060s prep time:408.734s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 66:
+	train loss:32300.0127  val ap:0.987919  val auc:0.990155
+	total time:484.670s sample time:80.971s prep time:398.000s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 67:
+	train loss:31399.8252  val ap:0.987808  val auc:0.990028
+	total time:364.720s sample time:58.902s prep time:301.559s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 68:
+	train loss:31591.0928  val ap:0.987937  val auc:0.989939
+	total time:375.522s sample time:62.591s prep time:308.776s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 69:
+	train loss:31408.9345  val ap:0.988186  val auc:0.989808
+	total time:373.659s sample time:62.560s prep time:306.692s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 70:
+	train loss:31455.9640  val ap:0.988092  val auc:0.989781
+	total time:305.915s sample time:51.210s prep time:250.259s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 71:
+save model at epoch 71
+	train loss:31263.4695  val ap:0.989439  val auc:0.990761
+	total time:274.397s sample time:44.801s prep time:225.219s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 72:
+	train loss:31231.6817  val ap:0.988551  val auc:0.990362
+	total time:263.469s sample time:45.213s prep time:213.836s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 73:
+save model at epoch 73
+	train loss:30985.1770  val ap:0.989597  val auc:0.990884
+	total time:269.938s sample time:43.879s prep time:221.468s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 74:
+save model at epoch 74
+	train loss:31213.9600  val ap:0.989883  val auc:0.991060
+	total time:267.037s sample time:43.836s prep time:218.613s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 75:
+	train loss:30790.5367  val ap:0.988772  val auc:0.990285
+	total time:253.136s sample time:42.667s prep time:206.379s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 76:
+	train loss:30833.3097  val ap:0.989001  val auc:0.990319
+	total time:244.158s sample time:39.900s prep time:200.492s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 77:
+	train loss:30518.6195  val ap:0.988525  val auc:0.990367
+	total time:254.891s sample time:41.876s prep time:209.011s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 78:
+	train loss:30261.8574  val ap:0.989704  val auc:0.990747
+	total time:239.244s sample time:39.488s prep time:195.940s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+Epoch 79:
+save model at epoch 79
+	train loss:30123.1854  val ap:0.990022  val auc:0.991033
+	total time:236.286s sample time:38.886s prep time:193.658s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+call get 135 times, total time 0.0
+call put 135 times, total time 0.0
+average statistics: 
+	 average_prep time: 328.846241119504
+	 time_total 401.769 s
+	total sample time: 82.422 s
+	total sample node: 401559.0, self._n_sample_per_node [10]
+	 time_forward: 1.618
+	 time_memory: 24.192
+	 time_message: 23.502
+	 time_backward 2.378s
+	 time_message 233.019s
+Loading model at epoch 79...
+	test AP:0.990001  test AUC:0.991718

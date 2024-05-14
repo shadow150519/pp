@@ -1,0 +1,369 @@
+disable_node: False
+disable_edge: False
+device_id is 1
+use edge feature
+Graph Dataset REDDIT:
+num_nodes 10985, num_edge 672447
+mem size 100, mail size 372, each node cache 1 mails
+total 470713 edges for train, can cache 65536, 13.922708741844819%
+total 10985 nodes for train, can cache 4096, 37.28720983158853%
+GeneralModel(
+  (memory_updater): GRUMemeoryUpdater(
+    (updater): GRUCell(472, 100)
+    (time_enc): TimeEncode(
+      (w): Linear(in_features=1, out_features=100, bias=True)
+    )
+  )
+  (layers): ModuleDict(
+    (l0h0): TransfomerAttentionLayer(
+      (dropout): Dropout(p=0.2, inplace=False)
+      (att_dropout): Dropout(p=0.2, inplace=False)
+      (att_act): LeakyReLU(negative_slope=0.2)
+      (time_enc): TimeEncode(
+        (w): Linear(in_features=1, out_features=100, bias=True)
+      )
+      (w_q): Linear(in_features=200, out_features=100, bias=True)
+      (w_k): Linear(in_features=372, out_features=100, bias=True)
+      (w_v): Linear(in_features=372, out_features=100, bias=True)
+      (w_out): Linear(in_features=200, out_features=100, bias=True)
+      (layer_norm): LayerNorm((100,), eps=1e-05, elementwise_affine=True)
+    )
+  )
+  (edge_predictor): EdgePredictor(
+    (src_fc): Linear(in_features=100, out_features=100, bias=True)
+    (dst_fc): Linear(in_features=100, out_features=100, bias=True)
+    (out_fc): Linear(in_features=100, out_features=1, bias=True)
+  )
+)
+mailbox use cache
+mail box max query: 165000
+Epoch 0:
+save model at epoch 0
+	train loss:561318.5078  val ap:0.916574  val auc:0.907340
+	total time:29.590s sample time:0.129s prep time:27.315s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+cache statistics:
+	name edge cache
+	call get 211 times, total time 0.0
+	call put 211 times, total time 0.0
+	query 9941048 times, hit 4525988 times, hit rate 0.455
+cache statistics:
+	name memory cache
+	call get 116 times, total time 0.0
+	call put 116 times, total time 0.0
+	query 11185075 times, hit 4827976 times, hit rate 0.432
+cache statistics:
+	name memory_ts cache
+	call get 116 times, total time 0.0
+	call put 116 times, total time 0.0
+	query 11185075 times, hit 4831072 times, hit rate 0.432
+cache statistics:
+	name mail cache
+	call get 116 times, total time 0.0
+	call put 116 times, total time 0.0
+	query 11185075 times, hit 4825770 times, hit rate 0.431
+cache statistics:
+	name mail_ts cache
+	call get 116 times, total time 0.0
+	call put 116 times, total time 0.0
+	query 11185075 times, hit 4837211 times, hit rate 0.432
+Epoch 1:
+save model at epoch 1
+	train loss:338985.7349  val ap:0.966835  val auc:0.970457
+	total time:28.097s sample time:0.114s prep time:26.526s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+cache statistics:
+	name edge cache
+	call get 211 times, total time 0.0
+	call put 211 times, total time 0.0
+	query 9941830 times, hit 4434774 times, hit rate 0.446
+cache statistics:
+	name memory cache
+	call get 116 times, total time 0.0
+	call put 116 times, total time 0.0
+	query 11185857 times, hit 4839453 times, hit rate 0.433
+cache statistics:
+	name memory_ts cache
+	call get 116 times, total time 0.0
+	call put 116 times, total time 0.0
+	query 11185857 times, hit 4843002 times, hit rate 0.433
+cache statistics:
+	name mail cache
+	call get 116 times, total time 0.0
+	call put 116 times, total time 0.0
+	query 11185857 times, hit 4834682 times, hit rate 0.432
+cache statistics:
+	name mail_ts cache
+	call get 116 times, total time 0.0
+	call put 116 times, total time 0.0
+	query 11185857 times, hit 4841998 times, hit rate 0.433
+Epoch 2:
+save model at epoch 2
+	train loss:202070.3157  val ap:0.979051  val auc:0.984868
+	total time:28.937s sample time:0.116s prep time:27.354s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+cache statistics:
+	name edge cache
+	call get 211 times, total time 0.0
+	call put 211 times, total time 0.0
+	query 9947002 times, hit 4438939 times, hit rate 0.446
+cache statistics:
+	name memory cache
+	call get 116 times, total time 0.0
+	call put 116 times, total time 0.0
+	query 11191029 times, hit 4829338 times, hit rate 0.432
+cache statistics:
+	name memory_ts cache
+	call get 116 times, total time 0.0
+	call put 116 times, total time 0.0
+	query 11191029 times, hit 4841611 times, hit rate 0.433
+cache statistics:
+	name mail cache
+	call get 116 times, total time 0.0
+	call put 116 times, total time 0.0
+	query 11191029 times, hit 4833615 times, hit rate 0.432
+cache statistics:
+	name mail_ts cache
+	call get 116 times, total time 0.0
+	call put 116 times, total time 0.0
+	query 11191029 times, hit 4846985 times, hit rate 0.433
+Epoch 3:
+save model at epoch 3
+	train loss:144595.2639  val ap:0.985821  val auc:0.989190
+	total time:28.132s sample time:0.119s prep time:26.546s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+cache statistics:
+	name edge cache
+	call get 211 times, total time 0.0
+	call put 211 times, total time 0.0
+	query 9944511 times, hit 4435645 times, hit rate 0.446
+cache statistics:
+	name memory cache
+	call get 116 times, total time 0.0
+	call put 116 times, total time 0.0
+	query 11188538 times, hit 4843339 times, hit rate 0.433
+cache statistics:
+	name memory_ts cache
+	call get 116 times, total time 0.0
+	call put 116 times, total time 0.0
+	query 11188538 times, hit 4845711 times, hit rate 0.433
+cache statistics:
+	name mail cache
+	call get 116 times, total time 0.0
+	call put 116 times, total time 0.0
+	query 11188538 times, hit 4836266 times, hit rate 0.432
+cache statistics:
+	name mail_ts cache
+	call get 116 times, total time 0.0
+	call put 116 times, total time 0.0
+	query 11188538 times, hit 4838149 times, hit rate 0.432
+Epoch 4:
+save model at epoch 4
+	train loss:128507.8378  val ap:0.986264  val auc:0.990093
+	total time:30.018s sample time:0.120s prep time:28.433s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+cache statistics:
+	name edge cache
+	call get 211 times, total time 0.0
+	call put 211 times, total time 0.0
+	query 9946701 times, hit 4433561 times, hit rate 0.446
+cache statistics:
+	name memory cache
+	call get 116 times, total time 0.0
+	call put 116 times, total time 0.0
+	query 11190728 times, hit 4848369 times, hit rate 0.433
+cache statistics:
+	name memory_ts cache
+	call get 116 times, total time 0.0
+	call put 116 times, total time 0.0
+	query 11190728 times, hit 4842558 times, hit rate 0.433
+cache statistics:
+	name mail cache
+	call get 116 times, total time 0.0
+	call put 116 times, total time 0.0
+	query 11190728 times, hit 4838304 times, hit rate 0.432
+cache statistics:
+	name mail_ts cache
+	call get 116 times, total time 0.0
+	call put 116 times, total time 0.0
+	query 11190728 times, hit 4844793 times, hit rate 0.433
+Epoch 5:
+save model at epoch 5
+	train loss:119804.8007  val ap:0.987776  val auc:0.991222
+	total time:30.708s sample time:0.119s prep time:29.123s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+cache statistics:
+	name edge cache
+	call get 211 times, total time 0.0
+	call put 211 times, total time 0.0
+	query 9941162 times, hit 4438495 times, hit rate 0.446
+cache statistics:
+	name memory cache
+	call get 116 times, total time 0.0
+	call put 116 times, total time 0.0
+	query 11185189 times, hit 4837786 times, hit rate 0.433
+cache statistics:
+	name memory_ts cache
+	call get 116 times, total time 0.0
+	call put 116 times, total time 0.0
+	query 11185189 times, hit 4830801 times, hit rate 0.432
+cache statistics:
+	name mail cache
+	call get 116 times, total time 0.0
+	call put 116 times, total time 0.0
+	query 11185189 times, hit 4833038 times, hit rate 0.432
+cache statistics:
+	name mail_ts cache
+	call get 116 times, total time 0.0
+	call put 116 times, total time 0.0
+	query 11185189 times, hit 4842966 times, hit rate 0.433
+Epoch 6:
+save model at epoch 6
+	train loss:113959.0645  val ap:0.988632  val auc:0.991701
+	total time:30.198s sample time:0.114s prep time:28.650s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+cache statistics:
+	name edge cache
+	call get 211 times, total time 0.0
+	call put 211 times, total time 0.0
+	query 9944366 times, hit 4434409 times, hit rate 0.446
+cache statistics:
+	name memory cache
+	call get 116 times, total time 0.0
+	call put 116 times, total time 0.0
+	query 11188393 times, hit 4838484 times, hit rate 0.432
+cache statistics:
+	name memory_ts cache
+	call get 116 times, total time 0.0
+	call put 116 times, total time 0.0
+	query 11188393 times, hit 4833375 times, hit rate 0.432
+cache statistics:
+	name mail cache
+	call get 116 times, total time 0.0
+	call put 116 times, total time 0.0
+	query 11188393 times, hit 4834858 times, hit rate 0.432
+cache statistics:
+	name mail_ts cache
+	call get 116 times, total time 0.0
+	call put 116 times, total time 0.0
+	query 11188393 times, hit 4837052 times, hit rate 0.432
+Epoch 7:
+	train loss:112033.6726  val ap:0.987798  val auc:0.991540
+	total time:30.086s sample time:0.120s prep time:28.499s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+cache statistics:
+	name edge cache
+	call get 211 times, total time 0.0
+	call put 211 times, total time 0.0
+	query 9944216 times, hit 4435953 times, hit rate 0.446
+cache statistics:
+	name memory cache
+	call get 116 times, total time 0.0
+	call put 116 times, total time 0.0
+	query 11188243 times, hit 4848072 times, hit rate 0.433
+cache statistics:
+	name memory_ts cache
+	call get 116 times, total time 0.0
+	call put 116 times, total time 0.0
+	query 11188243 times, hit 4838848 times, hit rate 0.432
+cache statistics:
+	name mail cache
+	call get 116 times, total time 0.0
+	call put 116 times, total time 0.0
+	query 11188243 times, hit 4838643 times, hit rate 0.432
+cache statistics:
+	name mail_ts cache
+	call get 116 times, total time 0.0
+	call put 116 times, total time 0.0
+	query 11188243 times, hit 4843669 times, hit rate 0.433
+Epoch 8:
+save model at epoch 8
+	train loss:107388.6378  val ap:0.989095  val auc:0.992131
+	total time:30.699s sample time:0.128s prep time:29.098s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+cache statistics:
+	name edge cache
+	call get 211 times, total time 0.0
+	call put 211 times, total time 0.0
+	query 9949242 times, hit 4437588 times, hit rate 0.446
+cache statistics:
+	name memory cache
+	call get 116 times, total time 0.0
+	call put 116 times, total time 0.0
+	query 11193269 times, hit 4844276 times, hit rate 0.433
+cache statistics:
+	name memory_ts cache
+	call get 116 times, total time 0.0
+	call put 116 times, total time 0.0
+	query 11193269 times, hit 4843886 times, hit rate 0.433
+cache statistics:
+	name mail cache
+	call get 116 times, total time 0.0
+	call put 116 times, total time 0.0
+	query 11193269 times, hit 4833566 times, hit rate 0.432
+cache statistics:
+	name mail_ts cache
+	call get 116 times, total time 0.0
+	call put 116 times, total time 0.0
+	query 11193269 times, hit 4841561 times, hit rate 0.433
+Epoch 9:
+save model at epoch 9
+	train loss:106815.0338  val ap:0.989564  val auc:0.992443
+	total time:29.688s sample time:0.114s prep time:28.149s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+cache statistics:
+	name edge cache
+	call get 211 times, total time 0.0
+	call put 211 times, total time 0.0
+	query 9949270 times, hit 4442368 times, hit rate 0.447
+cache statistics:
+	name memory cache
+	call get 116 times, total time 0.0
+	call put 116 times, total time 0.0
+	query 11193297 times, hit 4844296 times, hit rate 0.433
+cache statistics:
+	name memory_ts cache
+	call get 116 times, total time 0.0
+	call put 116 times, total time 0.0
+	query 11193297 times, hit 4840479 times, hit rate 0.432
+cache statistics:
+	name mail cache
+	call get 116 times, total time 0.0
+	call put 116 times, total time 0.0
+	query 11193297 times, hit 4839210 times, hit rate 0.432
+cache statistics:
+	name mail_ts cache
+	call get 116 times, total time 0.0
+	call put 116 times, total time 0.0
+	query 11193297 times, hit 4825414 times, hit rate 0.431
+Epoch 10:
+save model at epoch 10
+	train loss:103178.3321  val ap:0.989571  val auc:0.992854
+	total time:29.880s sample time:0.111s prep time:28.362s
+	build dgl blocks time:0.000s prepare input2 time 0.000s prepare mails time 0.000
+cache statistics:
+	name edge cache
+	call get 211 times, total time 0.0
+	call put 211 times, total time 0.0
+	query 9945148 times, hit 4433647 times, hit rate 0.446
+cache statistics:
+	name memory cache
+	call get 116 times, total time 0.0
+	call put 116 times, total time 0.0
+	query 11189175 times, hit 4841312 times, hit rate 0.433
+cache statistics:
+	name memory_ts cache
+	call get 116 times, total time 0.0
+	call put 116 times, total time 0.0
+	query 11189175 times, hit 4838963 times, hit rate 0.432
+cache statistics:
+	name mail cache
+	call get 116 times, total time 0.0
+	call put 116 times, total time 0.0
+	query 11189175 times, hit 4831775 times, hit rate 0.432
+cache statistics:
+	name mail_ts cache
+	call get 116 times, total time 0.0
+	call put 116 times, total time 0.0
+	query 11189175 times, hit 4827015 times, hit rate 0.431
+Epoch 11:

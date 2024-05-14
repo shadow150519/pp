@@ -7,6 +7,29 @@ import pandas as pd
 from tqdm import tqdm
 from sampler_core import ParallelSampler, TemporalGraphBlock
 
+
+class ParallelSamplerWrap(ParallelSampler):
+    def __init__(self,*args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._n_sample_per_node = args[7]
+        self._sample_elapsed = 0.0
+        self._n_sample = 0
+    
+    def sample(self, nodes, timestamps):
+        import time
+        start_time = time.time()        
+        super().sample(nodes, timestamps)
+        self._sample_elapsed += time.time() - start_time
+        self._n_sample += len(nodes)
+    
+    def report_statistic(self,n_epoch):
+        print(f"\ttotal sample time: {self._sample_elapsed/n_epoch:.3f} s")
+        print(f"\ttotal sample node: {self._n_sample/n_epoch}, self._n_sample_per_node {self._n_sample_per_node}")
+    def reset_statistic(self):
+        self._sample_elapsed = 0.0
+        self._n_sample = 0   
+        
+
 class NegLinkSampler:
 
     def __init__(self, num_nodes):

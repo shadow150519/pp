@@ -1,0 +1,73 @@
+dataset_name: cora
+feature_data:
+- domain: node
+  format: numpy
+  in_memory: true
+  name: feat
+  path: node-feat.npy
+  type: null
+graph:
+  nodes:
+    - num: 2708
+  edges:
+    - format: csv
+      path: edges.csv
+tasks:
+- name: node_classification
+  num_classes: 7
+  train_set:
+  - data:
+    - format: numpy
+      in_memory: true
+      name: seeds
+      path: nodeclassification/train-node.npy
+    - format: numpy
+      in_memory: true
+      name: labels
+      path: nodeclassification/train-label.npy
+    type_name: null
+  validation_set:
+  - data:
+    - format: numpy
+      in_memory: true
+      name: seeds
+      path: nodeclassification/valid-node.npy
+    - format: numpy
+      in_memory: true
+      name: labels
+      path: nodeclassification/valid-label.npy
+    type_name: null
+  test_set:
+  - data:
+    - format: numpy
+      in_memory: true
+      name: seeds
+      path: nodeclassification/test-node.npy
+    - format: numpy
+      in_memory: true
+      name: labels
+      path: nodeclassification/test-label.npy
+    type_name: null
+- name: link_prediction
+  train_set:
+  - data:
+    - format: numpy
+      in_memory: true
+      name: seeds
+      path: linkprediction/train-seeds.npy
+    type_name: null
+  test_set:
+  - data:
+    - format: numpy
+      in_memory: true
+      name: seeds
+      path: linkprediction/test-seeds.npy
+    - format: numpy
+      in_memory: true
+      name: labels
+      path: linkprediction/test-labels.npy
+    - format: numpy
+      in_memory: true
+      name: indexes
+      path: linkprediction/test-indexes.npy
+    type_name: null
