@@ -1,8 +1,0 @@
-usage: train_cache.py [-h] [--data DATA] [--config CONFIG] [--gpu GPU]
-                      [--model_name MODEL_NAME] [--use_inductive]
-                      [--rand_edge_features RAND_EDGE_FEATURES]
-                      [--rand_node_features RAND_NODE_FEATURES]
-                      [--eval_neg_samples EVAL_NEG_SAMPLES] [--ncsize NCSIZE]
-                      [--ncstrategy NCSTRATEGY] [--ecsize ECSIZE]
-                      [--ecstrategy ECSTRATEGY] [--disn] [--dise]
-train_cache.py: error: unrecognized arguments: 78

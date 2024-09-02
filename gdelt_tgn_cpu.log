@@ -1,7 +1,0 @@
-Epoch 0:
-Traceback (most recent call last):
-  File "/home/wtx/workspace/cpp_project/tgl/train.py", line 240, in <module>
-    mfgs = prepare_input(mfgs, node_feats, edge_feats, combine_first=combine_first)
-  File "/home/wtx/workspace/cpp_project/tgl/utils.py", line 121, in prepare_input
-    srch = node_feats[b.srcdata['ID'].long()].float()
-RuntimeError: indices should be either on cpu or on the same device as the indexed tensor (cpu)

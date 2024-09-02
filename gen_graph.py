@@ -50,7 +50,7 @@ for idx, row in tqdm(df.iterrows(), total=len(df)):
     
     
     
-    if row['int_roll'] == 0:
+    if row['int_roll'] == 0: # int_train是训练
         int_train_indices[src].append(dst)
         int_train_ts[src].append(row['time'])
         int_train_eid[src].append(idx)
@@ -59,7 +59,7 @@ for idx, row in tqdm(df.iterrows(), total=len(df)):
             int_train_ts[dst].append(row['time'])
             int_train_eid[dst].append(idx)
         # int_train_indptr[src + 1:] += 1
-    if row['int_roll'] != 3:
+    if row['int_roll'] != 3: # train + val + test
         int_full_indices[src].append(dst)
         int_full_ts[src].append(row['time'])
         int_full_eid[src].append(idx)

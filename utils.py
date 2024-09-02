@@ -5,6 +5,7 @@ import dgl
 import time
 import pandas as pd
 import numpy as np
+from pytorch_memlab import profile
 
 def load_feat(d, rand_de=0, rand_dn=0):
     node_feats = None

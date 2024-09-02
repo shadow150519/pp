@@ -1,34 +1,18 @@
 import argparse
 import os
-import pickle
 
 parser=argparse.ArgumentParser()
 parser.add_argument('--data', type=str, help='dataset name')
 parser.add_argument('--config', type=str, help='path to config file')
-parser.add_argument('--gpu', type=str, default='0', help='which GPU to use')
+parser.add_argument('--gpu', type=str, default='1', help='which GPU to use')
 parser.add_argument('--model_name', type=str, default='', help='name of stored model')
 parser.add_argument('--use_inductive', action='store_true')
 parser.add_argument('--rand_edge_features', type=int, default=0, help='use random edge featrues')
 parser.add_argument('--rand_node_features', type=int, default=0, help='use random node featrues')
 parser.add_argument('--eval_neg_samples', type=int, default=1, help='how many negative samples to use at inference. Note: this will change the metric of test set to AP+AUC to AP+MRR!')
-parser.add_argument('--ncsize',type=int)
-parser.add_argument('--ncstrategy',type=str)
-parser.add_argument('--ecsize',type=int)
-parser.add_argument('--ecstrategy',type=str)
-parser.add_argument("--mailsize", type=int)
-parser.add_argument("--memsize",type=int)
-parser.add_argument('--disn',action="store_true")
-parser.add_argument('--dise',action="store_true")
-parser.add_argument('--dism',action="store_true")
 args=parser.parse_args()
 
-disable_edge = args.dise
-disable_node = args.disn
-disable_mail = args.dism
-print(f"disable_node: {disable_node}")
-print(f"disable_edge: {disable_edge}")
-
-# os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
+os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
 
 import torch
 import time
@@ -40,6 +24,11 @@ from sampler import *
 from utils import *
 from sklearn.metrics import average_precision_score, roc_auc_score
 from torch.profiler import profile, record_function, ProfilerActivity
+from pytorch_memlab import LineProfiler, profile, set_target_gpu
+from torchstat import stat
+
+# import faulthandler
+# faulthandler.enable()
 
 def set_seed(seed):
     random.seed(seed)
@@ -47,44 +36,17 @@ def set_seed(seed):
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
 
+# torch.cuda.memory._record_memory_history(enabled=True)
 
-from gpucache.cache_wrapper import CacheWrapper
+set_seed(0)
 
-early_stop = EarlyStopMonitor(3)
-# set_seed(0)
 node_feats, edge_feats = load_feat(args.data, args.rand_edge_features, args.rand_node_features)
-node_cache, edge_cache = None, None
-node_cache_size, node_cache_strategy = args.ncsize, args.ncstrategy
-edge_cache_size, edge_cache_strategy = 2 ** args.ecsize, args.ecstrategy
-mail_cache_size, mem_cache_size = args.mailsize, args.memsize
-    
-
 # g:tcsr df:feature
 g, df = load_graph(args.data)
+
 sample_param, memory_param, gnn_param, train_param = parse_config(args.config)
-# g = renumber_nodes_and_edges(g)
-device_id = int(args.gpu)
-print(f"device_id is {device_id}")
-if not disable_node and node_feats is not None:
-    print("use node feature")
-    node_cache = CacheWrapper(node_feats, node_cache_size, node_cache_strategy,node_feats.shape[1],node_cache_size,device_id,name="node cache")
-if not disable_edge and edge_feats is not None:
-    print("use edge feature")
-    edge_cache = CacheWrapper(edge_feats, edge_cache_size, edge_cache_strategy, edge_feats.shape[1], edge_cache_size * 4, device_id,name="edge cache")
-
-
-
 train_edge_end = df[df['ext_roll'].gt(0)].index[0]
-
 val_edge_end = df[df['ext_roll'].gt(1)].index[0]
-
-print(f"Graph Dataset {args.data}:")
-print(f"num_nodes {g['indptr'].shape[0] - 1}, num_edge {len(df)}")
-print(f"mem size {memory_param['dim_out']}, mail size {memory_param['mailbox_size'] * (2 * memory_param['dim_out'] + edge_feats.shape[1])}, each node cache {memory_param['mailbox_size']} mails")
-print(f"total {train_edge_end} edges for train, can cache {edge_cache_size}, {edge_cache_size/train_edge_end*100}%")
-print(f"total {g['indptr'].shape[0] - 1} nodes for train, can cache {node_cache_size}, {node_cache_size/(g['indptr'].shape[0] - 1)*100}%")
-
-
 
 def get_inductive_links(df, train_edge_end, val_edge_end):
     train_df = df[:train_edge_end]
@@ -114,20 +76,29 @@ combine_first = False
 # TODO always false
 if 'combine_neighs' in train_param and train_param['combine_neighs']:
     combine_first = True
-model = GeneralModel(gnn_dim_node, gnn_dim_edge, sample_param, memory_param, gnn_param, train_param, combined=combine_first, device_id=device_id).cuda(device_id)
-# print(model)
-mem_cache_size = mail_cache_size = node_cache_size
-max_query_num_mailbox = train_param["batch_size"] * 3 * (1 + 10)
-mailbox = MailBox(memory_param, g['indptr'].shape[0] - 1, gnn_dim_edge, use_cache=False, mem_cache_size=mem_cache_size,mail_cache_size=mail_cache_size,mem_strategy=node_cache_strategy,mail_strategy=node_cache_strategy,device_id=device_id,max_query_num=max_query_num_mailbox) if memory_param['type'] != 'none' else None
+model = GeneralModel(gnn_dim_node, gnn_dim_edge, sample_param, memory_param, gnn_param, train_param, combined=combine_first).cuda()
+# for p in model.parameters():
+#     print(p, p.dtype)
+#     break
+mailbox = MailBox(memory_param, g['indptr'].shape[0] - 1, gnn_dim_edge) if memory_param['type'] != 'none' else None
+model_sum = sum(p.numel() for p in model.parameters())
+print(f"model params: {model_sum * 4 / 1024/1024}")
+# exit()
+
 creterion = torch.nn.BCEWithLogitsLoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=train_param['lr'])
+feat_params = 0
 if 'all_on_gpu' in train_param and train_param['all_on_gpu']:
     if node_feats is not None:
+        feat_params += node_feats.numel()
         node_feats = node_feats.cuda()
     if edge_feats is not None:
+        feat_params += edge_feats.numel()
         edge_feats = edge_feats.cuda()
     if mailbox is not None:
         mailbox.move_to_gpu()
+        
+print(f"feat_params: {feat_params * 4 / 1024 / 1024}")
 
 sampler = None
 if not ('no_sample' in sample_param and sample_param['no_sample']):
@@ -169,13 +140,12 @@ def eval(mode='val'):
                     sampler.sample(root_nodes, ts)
                 ret = sampler.get_ret()
             if gnn_param['arch'] != 'identity':
-                mfgs = to_dgl_blocks(ret, sample_param['history'],device_id=device_id)
+                mfgs = to_dgl_blocks(ret, sample_param['history'])
             else:
-                mfgs = node_to_dgl_blocks(root_nodes, ts,device_id=device_id)
-            # print(f"disable_node: {disable_node}")
-            mfgs = prepare_input2(mfgs, node_feats, edge_feats, combine_first=combine_first,nfeat_buff=node_cache,efeat_buff=edge_cache,disable_edge=disable_edge,disable_node=disable_node,device_id=device_id)
+                mfgs = node_to_dgl_blocks(root_nodes, ts)
+            mfgs = prepare_input(mfgs, node_feats, edge_feats, combine_first=combine_first)
             if mailbox is not None:
-                mailbox.prep_input_mails(mfgs[0],device_id=device_id)
+                mailbox.prep_input_mails(mfgs[0])
             pred_pos, pred_neg = model(mfgs, neg_samples=neg_samples)
             total_loss += creterion(pred_pos, torch.ones_like(pred_pos))
             total_loss += creterion(pred_neg, torch.zeros_like(pred_neg))
@@ -191,7 +161,7 @@ def eval(mode='val'):
                 mem_edge_feats = edge_feats[eid] if edge_feats is not None else None
                 block = None
                 if memory_param['deliver_to'] == 'neighbors':
-                    block = to_dgl_blocks(ret, sample_param['history'], reverse=True,device_id=device_id)[0][0]
+                    block = to_dgl_blocks(ret, sample_param['history'], reverse=True)[0][0]
                 mailbox.update_mailbox(model.memory_updater.last_updated_nid, model.memory_updater.last_updated_memory, root_nodes, ts, mem_edge_feats, block, neg_samples=neg_samples)
                 mailbox.update_memory(model.memory_updater.last_updated_nid, model.memory_updater.last_updated_memory, root_nodes, model.memory_updater.last_updated_ts, neg_samples=neg_samples)
         if mode == 'val':
@@ -231,42 +201,68 @@ if 'reorder' in train_param:
 # reset timer
 sampler.reset_statistic()
 model.reset_time()
-mailbox.reset_time()
+if mailbox is not None:
+    mailbox.reset_time()
 
 time_forward = 0
 time_backward = 0
 time_total = 0
-time_prep = 0
+time_update_mail = 0
+time_update_mem = 0
 
+time_tot_list = []
+time_sample_list = []
 time_prep_list = []
-need_prof = False
+time_prep_mail_list = []
+time_backward_list = []
+time_forward_list = []
+time_update_mail_list = []
+time_update_mem_list = []
+
+
 n_epoch = train_param['epoch']
-profile_log_dir='{}_{}_{}'.format(args.data,args.ecstrategy,args.ecsize)
-prof = None
-if need_prof:
+
+profile_log = "all_gpu_{}".format(args.data)
+need_profile = False
+if need_profile:
     prof = torch.profiler.profile(activities=[ProfilerActivity.CPU,ProfilerActivity.CUDA],
-                                  schedule=torch.profiler.schedule(wait=3,warmup=2,active=20,repeat=1),
-                                  on_trace_ready=torch.profiler.tensorboard_trace_handler('./profile_log/new_{}_with_edge_and_node'.format(profile_log_dir)),
-                                  profile_memory=True,
-                                  record_shapes=True,
-                                  with_stack=True)
+                                    schedule=torch.profiler.schedule(wait=3,warmup=2,active=30,repeat=1),
+                                    on_trace_ready=torch.profiler.tensorboard_trace_handler('./profile_log/{}'.format(profile_log)),
+                                    profile_memory=True,
+                                    record_shapes=True,
+                                    with_stack=True)
+    # torch.cuda.memory._record_memory_history
     prof.start()
-for e in range(train_param['epoch']):
-    if edge_cache is not None:
-        edge_cache.reset_cache()
-    if node_cache is not None:
-        node_cache.reset_cache()
-    if mailbox.use_cache:
-        mailbox.reset_cache()    
-    print('Epoch {:d}:'.format(e))
+    
+def train_epoch():
+    global sampler, model, df, g
+    global time_forward 
+    global time_backward 
+    global time_total 
+    global time_update_mail 
+    global time_update_mem 
+    global time_tot_list 
+    global time_sample_list 
+    global time_prep_list 
+    global time_prep_mail_list 
+    global time_backward_list 
+    global time_forward_list 
+    global time_update_mail_list 
+    global time_update_mem_list 
+    global best_ap 
+    global best_e 
+    global val_losses 
+    global group_indexes
+    
     time_sample = 0
     time_prep = 0
+    time_prep_mail = 0
     time_tot = 0
     total_loss = 0
-    time_prep_input2 = 0
-    time_prep_mail = 0
-    time_build_dgl_block = 0
-    time_update_mem_and_mail = 0
+    time_backward = 0
+    time_forward = 0
+    time_update_mail = 0
+    time_update_mem = 0
 
     # training
     model.train()
@@ -276,134 +272,149 @@ for e in range(train_param['epoch']):
         mailbox.reset()
         model.memory_updater.last_updated_nid = None
     # batch训练
-    # len(group_indexes) 好像就是1,我不知道为什么这里要这样写,所以这里就是根据batch_id每次取一个batch训练
+    # group_indexes[random.randint(0, len(group_indexes) - 1)] 这个写法是因为tgl有一个random chunk schedule，用在多GPU上补偿进度，在单GPU上就是group_indexes只有一个数据，用于划分batch
     for i, (_, rows) in enumerate(df[:train_edge_end].groupby(group_indexes[random.randint(0, len(group_indexes) - 1)])):
-        if need_prof:
+        if need_profile:
             prof.step()
-            if i > (3 + 2 + 20):
-                print("profile end")
+            if i > 3+ 2 +20:
                 prof.stop()
-                exit()
+                print(f"profile end")
+                exit(0)
+        # if i > 6:
+        #     memory_snapshot = torch.cuda.memory.memory_snapshot()
+        #     import pickle
+        #     with open('my_dict.pkl', 'wb') as f:
+        #         pickle.dump(memory_snapshot, f)
+        #     print(memory_snapshot)
+        #     print("collect done")
+        #     exit()
         t_tot_s = time.time()
         root_nodes = np.concatenate([rows.src.values, rows.dst.values, neg_link_sampler.sample(len(rows))]).astype(np.int32)
         ts = np.concatenate([rows.time.values, rows.time.values, rows.time.values]).astype(np.float32)
         # sample
-        time_sample_start = time.time()
-        if sampler is not None:
-            if 'no_neg' in sample_param and sample_param['no_neg']: 
-                pos_root_end = root_nodes.shape[0] * 2 // 3
-                sampler.sample(root_nodes[:pos_root_end], ts[:pos_root_end])
-            else:
-                sampler.sample(root_nodes, ts)
-            ret = sampler.get_ret()
-            # time_sample += ret[0].sample_time()
-            # time_sample += ret[0].tot_time()
-        time_sample += time.time() - time_sample_start
+        with record_function("sample"):
+            t_sample_start = time.time()
+            if sampler is not None:
+                if 'no_neg' in sample_param and sample_param['no_neg']:
+                    pos_root_end = root_nodes.shape[0] * 2 // 3
+                    sampler.sample(root_nodes[:pos_root_end], ts[:pos_root_end])
+                else:
+                    sampler.sample(root_nodes, ts)
+                ret = sampler.get_ret()
+                # time_sample += ret[0].sample_time()
+                #time_sample += ret[0].tot_time()
+            time_sample += time.time() - t_sample_start
+
         t_prep_s = time.time()
         # 把sample的结果变成DGLblock
         if gnn_param['arch'] != 'identity':
-            mfgs = to_dgl_blocks(ret, sample_param['history'],device_id=device_id)
+            mfgs = to_dgl_blocks(ret, sample_param['history'])
         else:
-            mfgs = node_to_dgl_blocks(root_nodes, ts,device_id=device_id)
-        #time_build_dgl_block += time.time() - t_prep_s
-
-        #t_prep_input2_s = time.time() 
-        mfgs = prepare_input2(mfgs, node_feats, edge_feats, combine_first=combine_first,nfeat_buff=node_cache,efeat_buff=edge_cache,disable_edge=disable_edge,disable_node=disable_node,device_id=device_id)
+            mfgs = node_to_dgl_blocks(root_nodes, ts)
+        mfgs = prepare_input(mfgs, node_feats, edge_feats, combine_first=combine_first)
+        t_prep_mail_start = time.time()
+        time_prep += (t_prep_mail_start - t_prep_s)
         # 准备src节点的memory,memory_ts,mails,mail_ts
-        #time_prep_input2 += time.time() - t_prep_input2_s 
-
-         #t_prep_mail_s = time.time() 
         if mailbox is not None:
-            mailbox.prep_input_mails(mfgs[0],device_id=device_id)
-        #time_prep_mail += time.time() - t_prep_mail_s
+            mailbox.prep_input_mails(mfgs[0])
+        time_prep_mail += (time.time() - t_prep_mail_start)
 
-        time_prep += time.time() - t_prep_s
         
         optimizer.zero_grad()
 
         # 前向包括update memory和embedding
         t_forward = time.time()
         pred_pos, pred_neg = model(mfgs)
-        time_forward += time.time() - t_forward
+        
 
         loss = creterion(pred_pos, torch.ones_like(pred_pos))
         loss += creterion(pred_neg, torch.zeros_like(pred_neg))
         total_loss += float(loss) * train_param['batch_size']
+        time_forward += time.time() - t_forward
         # backward
         t_backward = time.time()
         loss.backward()
         optimizer.step()
-        time_backward += time.time() - t_backward
-        t_update_mem_and_mail_start = time.time()
+        time_backward += (time.time() - t_backward)
+        t_update_mail_start = time.time()
         # 更新memory和mailbox
-        
         if mailbox is not None:
             eid = rows['Unnamed: 0'].values
-            mem_edge_feats = None
-            if edge_cache is not None:
-                mem_edge_feats = edge_cache.Get(eid)
-            else:
-                mem_edge_feats = edge_feats[eid] if edge_feats is not None else None
-
+            mem_edge_feats = edge_feats[eid] if edge_feats is not None else None
             block = None
             if memory_param['deliver_to'] == 'neighbors':
-                block = to_dgl_blocks(ret, sample_param['history'], reverse=True,device_id=device_id)[0][0]
+                block = to_dgl_blocks(ret, sample_param['history'], reverse=True)[0][0]
             mailbox.update_mailbox(model.memory_updater.last_updated_nid, model.memory_updater.last_updated_memory, root_nodes, ts, mem_edge_feats, block)
+            t_update_mem_start = time.time()
+            time_update_mail += t_update_mem_start -  t_update_mail_start
             mailbox.update_memory(model.memory_updater.last_updated_nid, model.memory_updater.last_updated_memory, root_nodes, model.memory_updater.last_updated_ts)
-        time_update_mem_and_mail += time.time() - t_update_mem_and_mail_start
+            time_update_mem += time.time() - t_update_mem_start
         time_tot += time.time() - t_tot_s
     ap, auc = eval('val')
-    if ap > best_ap:
+    if e > 2 and ap > best_ap:
         best_e = e
         best_ap = ap
         torch.save(model.state_dict(), path_saver)
-        print(f"save model at epoch {e}")
     time_total += time_tot
     print('\ttrain loss:{:.4f}  val ap:{:4f}  val auc:{:4f}'.format(total_loss, ap, auc))
-    print('\ttotal time:{:.3f}s sample time:{:.3f}s prep time:{:.3f}s'.format(time_tot, time_sample, time_prep))
-    print('\tforward time:{:.3f}s backward time: {:.3f}s update mem and mail time: {:.3f}s'.format(time_forward, time_backward, time_update_mem_and_mail))
-    # print('\tbuild dgl blocks time:{:.3f}s prepare input2 time {:.3f}s prepare mails time {:.3f}'.format(time_build_dgl_block,time_prep_input2,time_prep_mail))
-    if edge_cache is not None:
-        edge_cache.report_time()
-    if node_cache is not None:
-        node_cache.report_time()
-    if mailbox.use_cache:
-        mailbox.report_cache_usage()
+    print('\ttotal time:{:.3f}s sample time:{:.3f}s prep time:{:.3f}s prep mail time: {:.3f}s'.format(time_tot, time_sample, time_prep, time_prep_mail))
+    print('\tforward time:{:.3f}s backward time: {:.3f}s update mem time : {:.3f}s update mail time: {:.3f}s'.format(time_forward, time_backward, time_update_mem,time_update_mail))
+    print(f"total memory consume: {torch.cuda.max_memory_allocated() / 1e6}")
+    print(f"total memory reserve: {torch.cuda.max_memory_reserved() / 1e6}")
+    time_tot_list.append(time_tot)
+    time_sample_list.append(time_sample)
     time_prep_list.append(time_prep)
-    if early_stop.early_stop_check(ap):
-        print(f"ap don't improve in 3 epoches, early stop")
-        break
- 
+    time_prep_mail_list.append(time_prep_mail)
+    time_forward_list.append(time_forward)
+    time_backward_list.append(time_backward)
+    time_update_mem_list.append(time_update_mem)
+    time_update_mail_list.append(time_update_mail)
 
+
+set_target_gpu(2)
+mem_prof = LineProfiler(train_epoch)
+mem_prof.enable()
+
+# for e in range(train_param['epoch']):
+for e in range(n_epoch):
+    print('Epoch {:d}:'.format(e))
+    train_epoch()
+    
+    
+
+def mean(arr):
+    return sum(arr[1:]) / len(arr[1:])
 
 print(f"average statistics: ")
-print(f"\t average_prep time: {sum(time_prep_list)/len(time_prep_list)}")
-print(f"\t time_total {time_total/n_epoch:.3f} s")
-sampler.report_statistic(n_epoch)
-model.report_statistic(n_epoch, mailbox.time_memory)
-print(f"\t time_backward {time_backward/n_epoch:.3f}s")
-print(f"\t time_message {mailbox.time_message/n_epoch:.3f}s")
+print('\ttotal time:{:.3f}s sample time:{:.3f}s prep time:{:.3f}s prep mail time: {:.3f}s'.format(mean(time_tot_list), mean(time_sample_list), mean(time_prep_list), mean(time_prep_mail_list)))
+print('\tforward time:{:.3f}s backward time: {:.3f}s update mem time : {:.3f}s update mail time: {:.3f}s'.format(mean(time_forward_list), mean(time_backward_list), mean(time_update_mem_list),mean(time_update_mail_list)))
 
-node_cache_args = {"size": 12,"strategy":"LRU"}
-edge_cache_args = {"size": 12412, "strategy":"LRU"}
-dataset_args = {"name":"WIKI"}
-file_name = "results/{}_{}.pkl".format(args.data,edge_cache_args["size"],edge_cache_args["strategy"])
-with open(file_name,"wb") as f:
-    pickle.dump([node_cache_args,edge_cache_args,dataset_args,time_prep_list],f)
 
-    
-print('Loading model at epoch {}...'.format(best_e))
-model.load_state_dict(torch.load(path_saver))
-model.eval()
-if sampler is not None:
-    sampler.reset()
-if mailbox is not None:
-    mailbox.reset()
-    model.memory_updater.last_updated_nid = None
-    eval('train')
-    eval('val')
-ap, auc = eval('test')
-if args.eval_neg_samples > 1:
-    print('\ttest AP:{:4f}  test MRR:{:4f}'.format(ap, auc))
-else:
-    print('\ttest AP:{:4f}  test AUC:{:4f}'.format(ap, auc))
+mem_prof.disable()
+mem_prof.print_stats()
+
+# from pytorch_memlab import MemReporter
+
+# reporter = MemReporter()
+# reporter.report()
+
+
+# exit()
+
+
+print("trainning done!")    
+# print('Loading model at epoch {}...'.format(best_e))
+# model.load_state_dict(torch.load(path_saver))
+# model.eval()
+# if sampler is not None:
+#     sampler.reset()
+# if mailbox is not None:
+#     mailbox.reset()
+#     model.memory_updater.last_updated_nid = None
+#     eval('train')
+#     eval('val')
+# ap, auc = eval('test')
+# if args.eval_neg_samples > 1:
+#     print('\ttest AP:{:4f}  test MRR:{:4f}'.format(ap, auc))
+# else:
+#     print('\ttest AP:{:4f}  test AUC:{:4f}'.format(ap, auc))

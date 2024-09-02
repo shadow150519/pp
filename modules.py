@@ -4,6 +4,7 @@ import torch
 import dgl
 from memorys import *
 from layers import *
+from pytorch_memlab import profile
 
 class GeneralModel(torch.nn.Module):
 
@@ -33,7 +34,7 @@ class GeneralModel(torch.nn.Module):
             self.dim_node_input = memory_param['dim_out']
         self.layers = torch.nn.ModuleDict()
         if gnn_param['arch'] == 'transformer_attention':
-            for h in range(sample_param['history']): # ，每个snapshot会有一个Transformer
+            for h in range(sample_param['history']): # ，每个snapshot会有一个单独的GNN？
                 self.layers['l0h' + str(h)] = TransfomerAttentionLayer(self.dim_node_input, dim_edge, gnn_param['dim_time'], gnn_param['att_head'], train_param['dropout'], train_param['att_dropout'], gnn_param['dim_out'], combined=combined,device_id=self.device_id)
             for l in range(1, gnn_param['layer']):
                 for h in range(sample_param['history']):
@@ -55,13 +56,15 @@ class GeneralModel(torch.nn.Module):
 
     def reset_time(self):
         self.time_elapsed = 0.0
-        self.memory_updater.reset_time()
+        if hasattr(self,"memory_updater") and self.memory_updater is not None:
+            self.memory_updater.reset_time()
 
     def report_statistic(self,n_epoch,mailbox_time_memory):
         print(f"\t time_forward: {self.time_elapsed/n_epoch:.3f}")
         print(f"\t time_memory: {(self.memory_updater.time_memory+mailbox_time_memory)/n_epoch:.3f}")
         print(f"\t time_message: {(mailbox_time_memory)/n_epoch:.3f}")
-
+    
+    # @profile
     def forward(self, mfgs, neg_samples=1):
         import time
 
@@ -115,6 +118,7 @@ class NodeClassificationModel(torch.nn.Module):
         self.fc1 = torch.nn.Linear(dim_in, dim_hid)
         self.fc2 = torch.nn.Linear(dim_hid, num_class)
 
+    
     def forward(self, x):
         x = self.fc1(x)
         x = torch.nn.functional.relu(x)

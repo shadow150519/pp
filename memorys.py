@@ -6,6 +6,8 @@ import time
 from gpucache.cache_wrapper import CacheWrapper
 from typing import Dict
 
+from pytorch_memlab import profile
+
 class MailBox():
     def __init__(self, memory_param, num_nodes, dim_edge_feat, _node_memory=None, _node_memory_ts=None,_mailbox=None, _mailbox_ts=None, _next_mail_pos=None, _update_mail_pos=None, use_cache=False, mem_cache_size=0, mail_cache_size=0, mem_strategy="LRU",mail_strategy="LRU",device_id=0, max_query_num=0):
         self.memory_param = memory_param
@@ -49,13 +51,16 @@ class MailBox():
         self.mailbox.fill_(0)
         self.mailbox_ts.fill_(0)
         self.next_mail_pos.fill_(0)
-
+        
+    
     def move_to_gpu(self, device_id=0):
         self.node_memory = self.node_memory.cuda()
         self.node_memory_ts = self.node_memory_ts.cuda()
         self.mailbox = self.mailbox.cuda()
         self.mailbox_ts = self.mailbox_ts.cuda()
         self.next_mail_pos = self.next_mail_pos.cuda()
+        sum_param = (self.node_memory.numel() + self.node_memory_ts.numel() + self.mailbox.numel() + self.mailbox_ts.numel() + self.next_mail_pos.numel()) * 4 / 1024 / 1024
+        print(f"mailbox params: {sum_param}")
         self.device = torch.device('cuda', device_id)
 
     def allocate_pinned_memory_buffers(self, sample_param, batch_size):
@@ -73,7 +78,7 @@ class MailBox():
             self.pinned_mailbox_buffs.append(torch.zeros((limit, self.mailbox.shape[1], self.mailbox.shape[2]), pin_memory=True))
             self.pinned_mailbox_ts_buffs.append(torch.zeros((limit, self.mailbox_ts.shape[1]), pin_memory=True))
 
-
+    
     def prep_input_mails(self, mfg, use_pinned_buffers=False, device_id=0):
         # t_start = time.time()
         for i, b in enumerate(mfg):
@@ -109,7 +114,7 @@ class MailBox():
             # exit()
         # self.time_message += time.time() - t_start
 
-
+    
     def update_memory(self, nid, memory, root_nodes, ts, neg_samples=1):
         t_start = time.time()
         if nid is None:
@@ -124,9 +129,9 @@ class MailBox():
         time_elapsed = time.time() - t_start
         self.time_memory += time_elapsed
         # print(f"writeback memory elapsed: {time_elapsed * 1000:.3f} ms")
-
+    
     def update_mailbox(self, nid, memory, root_nodes, ts, edge_feats, block, neg_samples=1):
-        t_start = time.time()
+        # t_start = time.time()
         with torch.no_grad():
             num_true_edges = root_nodes.shape[0] // (neg_samples + 2)
             memory = memory.to(self.device)
@@ -146,7 +151,7 @@ class MailBox():
                 else:
                     src_mail = torch.cat([mem_src, mem_dst], dim=1)
                     dst_mail = torch.cat([mem_dst, mem_src], dim=1)
-                mail = torch.cat([src_mail, dst_mail], dim=1).reshape(-1, src_mail.shape[1])
+                mail = torch.cat([src_mail, dst_mail], dim=1).reshape(-1, src_mail.shape[1]) # mail shape: 2 shape (2 * len(src_mail), src_mail.shape[1])
                 nid = torch.cat([src.unsqueeze(1), dst.unsqueeze(1)], dim=1).reshape(-1)
                 mail_ts = torch.from_numpy(ts[:num_true_edges * 2]).to(self.device)
                 if mail_ts.dtype == torch.float64:
@@ -203,17 +208,17 @@ class MailBox():
                         self.update_mail_pos[nid.long()] = 1
             else:
                 raise NotImplementedError
-        time_elapsed = time.time() - t_start
-        self.time_message += time_elapsed
+        # time_elapsed = time.time() - t_start
+        # self.time_message += time_elapsed
         #print(f"compute message elapsed: {time_elapsed * 1000:.3f} ms")
     def update_next_mail_pos(self):
-        t_start = time.time()
+        # t_start = time.time()
         if self.update_mail_pos is not None:
             nid = torch.where(self.update_mail_pos == 1)[0]
             self.next_mail_pos[nid] = torch.remainder(self.next_mail_pos[nid] + 1, self.memory_param['mailbox_size'])
             self.update_mail_pos.fill_(0)
-        time_elapsed = time.time() - t_start
-        self.time_message += time_elapsed
+        # time_elapsed = time.time() - t_start
+        # self.time_message += time_elapsed
         #print(f"update next message pos message elapsed: {time_elapsed * 1000:.3f} ms")
 
 class GRUMemeoryUpdater(torch.nn.Module):

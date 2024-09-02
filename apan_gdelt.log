@@ -1,0 +1,152 @@
+0.5252876281738281
+feat_params: 0.0
+Epoch 0:
+	train loss:39461842.1343  val ap:0.975999  val auc:0.982415
+	total time:2983.020s sample time:106.046s prep time:230.282s prep mail time: 1404.521s
+	forward time:203.658s backward time: 199.694s update mem time : 50.857s update mail time: 645.926s
+Epoch 1:
+	train loss:37894653.0024  val ap:0.974622  val auc:0.981857
+	total time:2711.094s sample time:104.438s prep time:222.769s prep mail time: 1203.013s
+	forward time:204.246s backward time: 201.641s update mem time : 50.374s update mail time: 582.288s
+Epoch 2:
+	train loss:37483389.4904  val ap:0.976490  val auc:0.982636
+	total time:2702.145s sample time:111.259s prep time:221.338s prep mail time: 1149.217s
+	forward time:207.738s backward time: 209.765s update mem time : 52.856s update mail time: 611.244s
+average statistics: 
+	total time:2706.620s sample time:107.849s prep time:222.053s prep mail time: 1176.115s
+	forward time:205.992s backward time: 205.703s update mem time : 51.615s update mail time: 596.766s
+/home/wtx/miniconda3/envs/dgl/lib/python3.10/site-packages/pytorch_memlab/line_profiler/line_records.py:184: FutureWarning: DataFrame.applymap has been deprecated. Use DataFrame.map instead.
+  merged[byte_cols] = merged[byte_cols].applymap(readable_size)
+## train_epoch
+
+active_bytes reserved_bytes line code                                                                                                                                                                                 
+         all            all                                                                                                                                                                                           
+        peak           peak                                                                                                                                                                                           
+      52.77M        856.00M  234 def train_epoch():                                                                                                                                                                   
+                             235     global sampler, model, df, g                                                                                                                                                     
+                             236     global time_forward                                                                                                                                                              
+                             237     global time_backward                                                                                                                                                             
+                             238     global time_total                                                                                                                                                                
+                             239     global time_update_mail                                                                                                                                                          
+                             240     global time_update_mem                                                                                                                                                           
+                             241     global time_tot_list                                                                                                                                                             
+                             242     global time_sample_list                                                                                                                                                          
+                             243     global time_prep_list                                                                                                                                                            
+                             244     global time_prep_mail_list                                                                                                                                                       
+                             245     global time_backward_list                                                                                                                                                        
+                             246     global time_forward_list                                                                                                                                                         
+                             247     global time_update_mail_list                                                                                                                                                     
+                             248     global time_update_mem_list                                                                                                                                                      
+                             249     global best_ap                                                                                                                                                                   
+                             250     global best_e                                                                                                                                                                    
+                             251     global val_losses                                                                                                                                                                
+                             252     global group_indexes                                                                                                                                                             
+                             253                                                                                                                                                                                      
+       3.59M        856.00M  254     time_sample = 0                                                                                                                                                                  
+       3.59M        856.00M  255     time_prep = 0                                                                                                                                                                    
+       3.59M        856.00M  256     time_prep_mail = 0                                                                                                                                                               
+       3.59M        856.00M  257     time_tot = 0                                                                                                                                                                     
+       3.59M        856.00M  258     total_loss = 0                                                                                                                                                                   
+       3.59M        856.00M  259     time_backward = 0                                                                                                                                                                
+       3.59M        856.00M  260     time_forward = 0                                                                                                                                                                 
+       3.59M        856.00M  261     time_update_mail = 0                                                                                                                                                             
+       3.59M        856.00M  262     time_update_mem = 0                                                                                                                                                              
+                             263                                                                                                                                                                                      
+                             264     # training                                                                                                                                                                       
+       3.59M        856.00M  265     model.train()                                                                                                                                                                    
+       3.59M        856.00M  266     if sampler is not None:                                                                                                                                                          
+       3.59M        856.00M  267         sampler.reset()                                                                                                                                                              
+       3.59M        856.00M  268     if mailbox is not None:                                                                                                                                                          
+       3.59M        856.00M  269         mailbox.reset()                                                                                                                                                              
+       3.59M        856.00M  270         model.memory_updater.last_updated_nid = None                                                                                                                                 
+                             271     # batch训练                                                                                                                                                                        
+                             272     # len(group_indexes) 好像就是1,我不知道为什么这里要这样写,所以这里就是根据batch_id每次取一个batch训练                                                                                                            
+     146.35M        856.00M  273     for i, (_, rows) in enumerate(df[:train_edge_end].groupby(group_indexes[random.randint(0, len(group_indexes) - 1)])):                                                            
+     146.35M        856.00M  274         if need_profile:                                                                                                                                                             
+                             275             prof.step()                                                                                                                                                              
+                             276             if i > 3+ 2 +20:                                                                                                                                                         
+                             277                 prof.stop()                                                                                                                                                          
+                             278                 print(f"profile end")                                                                                                                                                
+                             279                 exit(0)                                                                                                                                                              
+     146.35M        856.00M  280         t_tot_s = time.time()                                                                                                                                                        
+     146.35M        856.00M  281         root_nodes = np.concatenate([rows.src.values, rows.dst.values, neg_link_sampler.sample(len(rows))]).astype(np.int32)                                                         
+     146.35M        856.00M  282         ts = np.concatenate([rows.time.values, rows.time.values, rows.time.values]).astype(np.float32)                                                                               
+                             283         # sample                                                                                                                                                                     
+     146.35M        856.00M  284         with record_function("sample"):                                                                                                                                              
+     146.35M        856.00M  285             t_sample_start = time.time()                                                                                                                                             
+     146.35M        856.00M  286             if sampler is not None:                                                                                                                                                  
+     146.35M        856.00M  287                 if 'no_neg' in sample_param and sample_param['no_neg']:                                                                                                              
+     146.35M        856.00M  288                     pos_root_end = root_nodes.shape[0] * 2 // 3                                                                                                                      
+     146.35M        856.00M  289                     sampler.sample(root_nodes[:pos_root_end], ts[:pos_root_end])                                                                                                     
+                             290                 else:                                                                                                                                                                
+                             291                     sampler.sample(root_nodes, ts)                                                                                                                                   
+     146.35M        856.00M  292                 ret = sampler.get_ret()                                                                                                                                              
+                             293                 # time_sample += ret[0].sample_time()                                                                                                                                
+                             294                 #time_sample += ret[0].tot_time()                                                                                                                                    
+     146.35M        856.00M  295             time_sample += time.time() - t_sample_start                                                                                                                              
+                             296                                                                                                                                                                                      
+     146.35M        856.00M  297         t_prep_s = time.time()                                                                                                                                                       
+                             298         # 把sample的结果变成DGLblock                                                                                                                                                       
+     146.35M        856.00M  299         if gnn_param['arch'] != 'identity':                                                                                                                                          
+                             300             mfgs = to_dgl_blocks(ret, sample_param['history'])                                                                                                                       
+                             301         else:                                                                                                                                                                        
+     146.35M        856.00M  302             mfgs = node_to_dgl_blocks(root_nodes, ts)                                                                                                                                
+      20.24M        856.00M  303         mfgs = prepare_input(mfgs, node_feats, edge_feats, combine_first=combine_first)                                                                                              
+      20.24M        856.00M  304         t_prep_mail_start = time.time()                                                                                                                                              
+      20.24M        856.00M  305         time_prep += (t_prep_mail_start - t_prep_s)                                                                                                                                  
+                             306         # 准备src节点的memory,memory_ts,mails,mail_ts                                                                                                                                     
+      20.24M        856.00M  307         if mailbox is not None:                                                                                                                                                      
+     156.06M        856.00M  308             mailbox.prep_input_mails(mfgs[0])                                                                                                                                        
+     156.06M        856.00M  309         time_prep_mail += (time.time() - t_prep_mail_start)                                                                                                                          
+                             310                                                                                                                                                                                      
+                             311                                                                                                                                                                                      
+     156.06M        856.00M  312         optimizer.zero_grad()                                                                                                                                                        
+                             313                                                                                                                                                                                      
+                             314         # 前向包括update memory和embedding                                                                                                                                                
+     156.06M        856.00M  315         t_forward = time.time()                                                                                                                                                      
+     503.20M        856.00M  316         pred_pos, pred_neg = model(mfgs)                                                                                                                                             
+                             317                                                                                                                                                                                      
+                             318                                                                                                                                                                                      
+     435.54M        856.00M  319         loss = creterion(pred_pos, torch.ones_like(pred_pos))                                                                                                                        
+     435.55M        856.00M  320         loss += creterion(pred_neg, torch.zeros_like(pred_neg))                                                                                                                      
+     435.49M        856.00M  321         total_loss += float(loss) * train_param['batch_size']                                                                                                                        
+     435.49M        856.00M  322         time_forward += time.time() - t_forward                                                                                                                                      
+                             323         # backward                                                                                                                                                                   
+     435.49M        856.00M  324         t_backward = time.time()                                                                                                                                                     
+     729.54M        856.00M  325         loss.backward()                                                                                                                                                              
+     146.72M        856.00M  326         optimizer.step()                                                                                                                                                             
+     146.35M        856.00M  327         time_backward += (time.time() - t_backward)                                                                                                                                  
+     146.35M        856.00M  328         t_update_mail_start = time.time()                                                                                                                                            
+                             329         # 更新memory和mailbox                                                                                                                                                           
+     146.35M        856.00M  330         if mailbox is not None:                                                                                                                                                      
+     146.35M        856.00M  331             eid = rows['Unnamed: 0'].values                                                                                                                                          
+     146.35M        856.00M  332             mem_edge_feats = edge_feats[eid] if edge_feats is not None else None                                                                                                     
+     146.35M        856.00M  333             block = None                                                                                                                                                             
+     146.35M        856.00M  334             if memory_param['deliver_to'] == 'neighbors':                                                                                                                            
+     146.35M        856.00M  335                 block = to_dgl_blocks(ret, sample_param['history'], reverse=True)[0][0]                                                                                              
+     146.35M        856.00M  336             mailbox.update_mailbox(model.memory_updater.last_updated_nid, model.memory_updater.last_updated_memory, root_nodes, ts, mem_edge_feats, block)                           
+     146.35M        856.00M  337             t_update_mem_start = time.time()                                                                                                                                         
+     146.35M        856.00M  338             time_update_mail += t_update_mem_start -  t_update_mail_start                                                                                                            
+     146.35M        856.00M  339             mailbox.update_memory(model.memory_updater.last_updated_nid, model.memory_updater.last_updated_memory, root_nodes, model.memory_updater.last_updated_ts)                 
+     146.35M        856.00M  340             time_update_mem += time.time() - t_update_mem_start                                                                                                                      
+     146.35M        856.00M  341         time_tot += time.time() - t_tot_s                                                                                                                                            
+     515.83M        856.00M  342     ap, auc = eval('val')                                                                                                                                                            
+      52.77M        856.00M  343     if e > 2 and ap > best_ap:                                                                                                                                                       
+                             344         best_e = e                                                                                                                                                                   
+                             345         best_ap = ap                                                                                                                                                                 
+                             346         torch.save(model.state_dict(), path_saver)                                                                                                                                   
+      52.77M        856.00M  347     time_total += time_tot                                                                                                                                                           
+      52.77M        856.00M  348     print('\ttrain loss:{:.4f}  val ap:{:4f}  val auc:{:4f}'.format(total_loss, ap, auc))                                                                                            
+      52.77M        856.00M  349     print('\ttotal time:{:.3f}s sample time:{:.3f}s prep time:{:.3f}s prep mail time: {:.3f}s'.format(time_tot, time_sample, time_prep, time_prep_mail))                             
+      52.77M        856.00M  350     print('\tforward time:{:.3f}s backward time: {:.3f}s update mem time : {:.3f}s update mail time: {:.3f}s'.format(time_forward, time_backward, time_update_mem,time_update_mail)) 
+      52.77M        856.00M  351     print(f"total memory consume: {torch.cuda.max_memory_allocated() / 1e6}")                                                                                                        
+      52.77M        856.00M  352     time_tot_list.append(time_tot)                                                                                                                                                   
+      52.77M        856.00M  353     time_sample_list.append(time_sample)                                                                                                                                             
+      52.77M        856.00M  354     time_prep_list.append(time_prep)                                                                                                                                                 
+      52.77M        856.00M  355     time_prep_mail_list.append(time_prep_mail)                                                                                                                                       
+      52.77M        856.00M  356     time_forward_list.append(time_forward)                                                                                                                                           
+      52.77M        856.00M  357     time_backward_list.append(time_backward)                                                                                                                                         
+      52.77M        856.00M  358     time_update_mem_list.append(time_update_mem)                                                                                                                                     
+                             359     time_update_mail_list.append(time_update_mail)                                                                                                                                   
+trainning done!
+No data collected

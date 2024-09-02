@@ -239,7 +239,7 @@ time_total = 0
 time_prep = 0
 
 time_prep_list = []
-need_prof = False
+need_prof = True
 n_epoch = train_param['epoch']
 profile_log_dir='{}_{}_{}'.format(args.data,args.ecstrategy,args.ecsize)
 prof = None
@@ -266,7 +266,6 @@ for e in range(train_param['epoch']):
     time_prep_input2 = 0
     time_prep_mail = 0
     time_build_dgl_block = 0
-    time_update_mem_and_mail = 0
 
     # training
     model.train()
@@ -283,38 +282,42 @@ for e in range(train_param['epoch']):
             if i > (3 + 2 + 20):
                 print("profile end")
                 prof.stop()
+                print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=10))
+                print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
                 exit()
         t_tot_s = time.time()
         root_nodes = np.concatenate([rows.src.values, rows.dst.values, neg_link_sampler.sample(len(rows))]).astype(np.int32)
         ts = np.concatenate([rows.time.values, rows.time.values, rows.time.values]).astype(np.float32)
         # sample
-        time_sample_start = time.time()
-        if sampler is not None:
-            if 'no_neg' in sample_param and sample_param['no_neg']: 
-                pos_root_end = root_nodes.shape[0] * 2 // 3
-                sampler.sample(root_nodes[:pos_root_end], ts[:pos_root_end])
-            else:
-                sampler.sample(root_nodes, ts)
-            ret = sampler.get_ret()
-            # time_sample += ret[0].sample_time()
-            # time_sample += ret[0].tot_time()
-        time_sample += time.time() - time_sample_start
+        with record_function("sample"):
+            if sampler is not None:
+                if 'no_neg' in sample_param and sample_param['no_neg']: 
+                    pos_root_end = root_nodes.shape[0] * 2 // 3
+                    sampler.sample(root_nodes[:pos_root_end], ts[:pos_root_end])
+                else:
+                    sampler.sample(root_nodes, ts)
+                ret = sampler.get_ret()
+                # time_sample += ret[0].sample_time()
+                time_sample += ret[0].tot_time()
         t_prep_s = time.time()
         # 把sample的结果变成DGLblock
-        if gnn_param['arch'] != 'identity':
-            mfgs = to_dgl_blocks(ret, sample_param['history'],device_id=device_id)
-        else:
-            mfgs = node_to_dgl_blocks(root_nodes, ts,device_id=device_id)
+        with record_function("to_dgl_block"):
+            if gnn_param['arch'] != 'identity':
+                mfgs = to_dgl_blocks(ret, sample_param['history'],device_id=device_id)
+            else:
+                mfgs = node_to_dgl_blocks(root_nodes, ts,device_id=device_id)
         #time_build_dgl_block += time.time() - t_prep_s
 
-        #t_prep_input2_s = time.time() 
-        mfgs = prepare_input2(mfgs, node_feats, edge_feats, combine_first=combine_first,nfeat_buff=node_cache,efeat_buff=edge_cache,disable_edge=disable_edge,disable_node=disable_node,device_id=device_id)
+        #t_prep_input2_s = time.time()
+        with record_function("preppare_input2"): 
+            mfgs = prepare_input2(mfgs, node_feats, edge_feats, combine_first=combine_first,nfeat_buff=node_cache,efeat_buff=edge_cache,disable_edge=disable_edge,disable_node=disable_node,device_id=device_id)
         # 准备src节点的memory,memory_ts,mails,mail_ts
         #time_prep_input2 += time.time() - t_prep_input2_s 
 
          #t_prep_mail_s = time.time() 
-        if mailbox is not None:
-            mailbox.prep_input_mails(mfgs[0],device_id=device_id)
+        with record_function("prep_mail"):     
+            if mailbox is not None:
+                mailbox.prep_input_mails(mfgs[0],device_id=device_id)
         #time_prep_mail += time.time() - t_prep_mail_s
 
         time_prep += time.time() - t_prep_s
@@ -322,35 +325,37 @@ for e in range(train_param['epoch']):
         optimizer.zero_grad()
 
         # 前向包括update memory和embedding
-        t_forward = time.time()
-        pred_pos, pred_neg = model(mfgs)
-        time_forward += time.time() - t_forward
+        with record_function("forward"):
+            t_forward = time.time()
+            pred_pos, pred_neg = model(mfgs)
+            time_forward += time.time() - t_forward
 
         loss = creterion(pred_pos, torch.ones_like(pred_pos))
         loss += creterion(pred_neg, torch.zeros_like(pred_neg))
         total_loss += float(loss) * train_param['batch_size']
         # backward
-        t_backward = time.time()
-        loss.backward()
-        optimizer.step()
-        time_backward += time.time() - t_backward
-        t_update_mem_and_mail_start = time.time()
+        with record_function("backward"):
+            t_backward = time.time()
+            loss.backward()
+            optimizer.step()
+            time_backward += time.time() - t_backward
+        t_prep_s = time.time()
         # 更新memory和mailbox
-        
-        if mailbox is not None:
-            eid = rows['Unnamed: 0'].values
-            mem_edge_feats = None
-            if edge_cache is not None:
-                mem_edge_feats = edge_cache.Get(eid)
-            else:
-                mem_edge_feats = edge_feats[eid] if edge_feats is not None else None
+        with record_function("update_mem_and_mailbox"):
+            if mailbox is not None:
+                eid = rows['Unnamed: 0'].values
+                mem_edge_feats = None
+                if edge_cache is not None:
+                    mem_edge_feats = edge_cache.Get(eid)
+                else:
+                    mem_edge_feats = edge_feats[eid] if edge_feats is not None else None
 
-            block = None
-            if memory_param['deliver_to'] == 'neighbors':
-                block = to_dgl_blocks(ret, sample_param['history'], reverse=True,device_id=device_id)[0][0]
-            mailbox.update_mailbox(model.memory_updater.last_updated_nid, model.memory_updater.last_updated_memory, root_nodes, ts, mem_edge_feats, block)
-            mailbox.update_memory(model.memory_updater.last_updated_nid, model.memory_updater.last_updated_memory, root_nodes, model.memory_updater.last_updated_ts)
-        time_update_mem_and_mail += time.time() - t_update_mem_and_mail_start
+                block = None
+                if memory_param['deliver_to'] == 'neighbors':
+                    block = to_dgl_blocks(ret, sample_param['history'], reverse=True,device_id=device_id)[0][0]
+                mailbox.update_mailbox(model.memory_updater.last_updated_nid, model.memory_updater.last_updated_memory, root_nodes, ts, mem_edge_feats, block)
+                mailbox.update_memory(model.memory_updater.last_updated_nid, model.memory_updater.last_updated_memory, root_nodes, model.memory_updater.last_updated_ts)
+        time_prep += time.time() - t_prep_s
         time_tot += time.time() - t_tot_s
     ap, auc = eval('val')
     if ap > best_ap:
@@ -361,8 +366,7 @@ for e in range(train_param['epoch']):
     time_total += time_tot
     print('\ttrain loss:{:.4f}  val ap:{:4f}  val auc:{:4f}'.format(total_loss, ap, auc))
     print('\ttotal time:{:.3f}s sample time:{:.3f}s prep time:{:.3f}s'.format(time_tot, time_sample, time_prep))
-    print('\tforward time:{:.3f}s backward time: {:.3f}s update mem and mail time: {:.3f}s'.format(time_forward, time_backward, time_update_mem_and_mail))
-    # print('\tbuild dgl blocks time:{:.3f}s prepare input2 time {:.3f}s prepare mails time {:.3f}'.format(time_build_dgl_block,time_prep_input2,time_prep_mail))
+    print('\tbuild dgl blocks time:{:.3f}s prepare input2 time {:.3f}s prepare mails time {:.3f}'.format(time_build_dgl_block,time_prep_input2,time_prep_mail))
     if edge_cache is not None:
         edge_cache.report_time()
     if node_cache is not None:

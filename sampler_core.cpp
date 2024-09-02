@@ -1,10 +1,12 @@
 #include <cstdio>
 #include <iostream>
+#include <ostream>
 #include <string>
 #include <cstdlib>
 #include <random>
 #include <omp.h>
 #include <math.h>
+#include <algorithm>
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
@@ -19,12 +21,14 @@ typedef float TimeStampType;
 class TemporalGraphBlock // COO格式的采样
 {
     public:
-        std::vector<NodeIDType> row;  // 0 0 0 0 1 1 1 1 .... 299 299 299， 假设有300个node
-        std::vector<NodeIDType> col;  // 0 1 2 3 4 5 6 7
+        // row 和 col 表示coo格式的采样
+        // 假设有300个node每个node采样2个邻居
+        std::vector<NodeIDType> row;  // 0 0 0 0 1 1 1 1 .... 299 299 299， 
+        std::vector<NodeIDType> col;  // 0 1 2 3 4 5 6 7 .... 599
         std::vector<EdgeIDType> eid;  
         std::vector<TimeStampType> ts; 
         std::vector<TimeStampType> dts; 
-        std::vector<NodeIDType> nodes; 
+        std::vector<NodeIDType> nodes; // sample neighbor的global id
         NodeIDType dim_in, dim_out; // 一共是dim_out个root_node， 需要为每个root_node采样dim_in个1-hop neighbor
         double ptr_time = 0;
         double search_time = 0;
@@ -94,8 +98,8 @@ class ParallelSampler
             { 
                 it->resize(indptr.size() - 1); // num_nodes
 #pragma omp parallel for 
-                for (auto itt = indptr.begin(); itt < indptr.end() - 1; itt++){ // 遍历所有的node,表示
-                    (*it)[itt - indptr.begin()] = *itt; // 把每个snapshot指针数组初始化为csr数组
+                for (auto itt = indptr.begin(); itt < indptr.end() - 1; itt++){ // 遍历所有的node
+                    (*it)[itt - indptr.begin()] = *itt; // 把每个snapshot指针数组初始化为tcsr的indice部分
                 }
 
             }
@@ -148,15 +152,15 @@ class ParallelSampler
                                  std::vector<TimeStampType> *_dts, std::vector<NodeIDType> *_nodes, 
                                  EdgeIDType &k, TimeStampType &src_ts, int &row_id)
         {
-            _row->push_back(row_id); // root_node local id
-            _col->push_back(_nodes->size()); 
-            _eid->push_back(eid[k]);
-            if (prop_time)
+            _row->push_back(row_id); // root_node local id, 每个线程从0开始
+            _col->push_back(_nodes->size());  // neighbor node local id
+            _eid->push_back(eid[k]); // edge id
+            if (prop_time) // push ts
                 _ts->push_back(src_ts);
             else
                 _ts->push_back(ts[k]);
-            _dts->push_back(src_ts - ts[k]);
-            _nodes->push_back(indices[k]); // 采样了哪个node
+            _dts->push_back(src_ts - ts[k]); // different ts
+            _nodes->push_back(indices[k]); // 采样了哪个node做邻居
             // _row.push_back(0);
             // _col.push_back(0);
             // _eid.push_back(0);
@@ -182,8 +186,8 @@ class ParallelSampler
             for (int tid = 0; tid < num_threads; tid++)
             {
                 // std::cout<<tid<<" here "<<_out_nodes[tid]<<std::endl;  
-                cum_row.push_back(cum_row.back() + _out_nodes[tid]);  
-                cum_col.push_back(cum_col.back() + _col[tid]->size());
+                cum_row.push_back(cum_row.back() + _out_nodes[tid]);  // _out_nodes[tid] 表示这个thread采样了几个node
+                cum_col.push_back(cum_col.back() + _col[tid]->size()); // _col[tid]->size() 表示这个thread采样了多少个neighbor
             }
             int num_root_nodes = _ret.nodes.size();
             _ret.row.resize(cum_col.back());
@@ -218,7 +222,7 @@ class ParallelSampler
         }
 
 
-
+        // from_root 表示是不是为根节点采样邻居，也就是第0层
         // use_ptr是什么 ? 好像是判断要不要用那个ts数组 if ((first_layer) || ((prop_time) && num_history == 1) || (recent))
         // 为了所有的snapshot采样一层
         void sample_layer(std::vector<NodeIDType> &_root_nodes, std::vector<TimeStampType> &_root_ts,
@@ -231,6 +235,9 @@ class ParallelSampler
             {
                 root_nodes = &_root_nodes;
                 root_ts = &_root_ts;
+            }else {
+                root_nodes = &(ret[ret.size() - 1 - num_history].nodes);
+                root_ts = &(ret[ret.size() - 1 - num_history].ts);
             }
             double t_ptr_s = omp_get_wtime();
             if (use_ptr) 
@@ -251,13 +258,13 @@ class ParallelSampler
                 if ((use_ptr) && (std::abs(window_duration) > 1e-7f))
                     update_ts_ptr(num_history - 1 - i, *root_nodes, *root_ts, offset - window_duration);
                 ret[0].ptr_time += omp_get_wtime() - t_ptr_s;
-                std::vector<NodeIDType> *_row[num_threads];
-                std::vector<NodeIDType> *_col[num_threads];
-                std::vector<EdgeIDType> *_eid[num_threads];
-                std::vector<TimeStampType> *_ts[num_threads];
-                std::vector<TimeStampType> *_dts[num_threads];
-                std::vector<NodeIDType> *_nodes[num_threads];
-                std::vector<int> _out_node(num_threads, 0);
+                std::vector<NodeIDType> *_row[num_threads]; // root node local id
+                std::vector<NodeIDType> *_col[num_threads]; // neigh node local id different from root node
+                std::vector<EdgeIDType> *_eid[num_threads]; // edge id
+                std::vector<TimeStampType> *_ts[num_threads]; // ts if prop_time ts = src_ts
+                std::vector<TimeStampType> *_dts[num_threads]; // ts difference
+                std::vector<NodeIDType> *_nodes[num_threads]; // neighbor node global id
+                std::vector<int> _out_node(num_threads, 0); // each thread sample neigh cnt
                 
                 // 每个线程要有多少的容量
                 int reserve_capacity = int(ceil(static_cast<float>((*root_nodes).size()) / num_threads))*neighs;
@@ -327,7 +334,7 @@ class ParallelSampler
                             for (EdgeIDType k = e_search; k > std::max(s_search, e_search - neighs); k--)
                             {
                                 if (ts[k] < nts + offset - 1e-7f)
-                                {
+                                {   
                                     add_neighbor(_row[tid], _col[tid], _eid[tid], _ts[tid], 
                                                  _dts[tid], _nodes[tid], k, nts, _out_node[tid]);
                                 }
@@ -341,6 +348,7 @@ class ParallelSampler
                                 EdgeIDType picked = s_search + rand_r(&loc_seed) % (e_search - s_search + 1);
                                 if (ts[picked] < nts + offset - 1e-7f)
                                 {
+                                    printf("thread %d pick neighbor %d for root node %d\n", tid, picked, n);
                                     add_neighbor(_row[tid], _col[tid], _eid[tid], _ts[tid], 
                                                  _dts[tid], _nodes[tid], picked, nts, _out_node[tid]); // _out_nodes[tid]表示一个thread 负责的local id
                                 }
@@ -354,7 +362,7 @@ class ParallelSampler
 
                 double t_coo_s = omp_get_wtime();
                 ret[ret.size() - 1 - i].ts.insert(ret[ret.size() - 1 - i].ts.end(), 
-                                                  root_ts->begin(), root_ts->end());
+                                                  root_ts->begin(), root_ts->end()); // 先提前吧root node的id和ts插入
                 ret[ret.size() - 1 - i].nodes.insert(ret[ret.size() - 1 - i].nodes.end(), 
                                                      root_nodes->begin(), root_nodes->end());
                 ret[ret.size() - 1 - i].dts.resize(root_nodes->size());
@@ -373,7 +381,7 @@ class ParallelSampler
             bool use_ptr = false;
             for (int i = 0; i < num_layers; i++)
             { 
-                ret.resize(ret.size() + num_history); // 不断的添加新的一层的采样结果 ret的结构是 (layer1-snapshot1 layer1-snapshot2 layer1-snapshot3 layer2-snapshot1 layer2-snapshot2 layer2-snapshot3)
+                ret.resize(ret.size() + num_history); // 不断的添加新的一层的所有snapshot的采样结果 ret的结构是 (layer1-snapshot1 layer1-snapshot2 layer1-snapshot3 layer2-snapshot1 layer2-snapshot2 layer2-snapshot3)
                 if ((first_layer) || ((prop_time) && num_history == 1) || (recent)) // 这三个条件为什么要use_ptr呢
                 {
                     first_layer = false;
@@ -381,10 +389,13 @@ class ParallelSampler
                 }
                 else
                     use_ptr = false;
-                if (i==0)
+                if (i==0){
                     sample_layer(root_nodes, root_ts, num_neighbors[i], use_ptr, true);
+                }
                 else
+                {                
                     sample_layer(root_nodes, root_ts, num_neighbors[i], use_ptr, false);
+                }
             }
         }
 };

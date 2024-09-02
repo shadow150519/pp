@@ -6,3 +6,7 @@ models/
 profile_log/
 results/
 DATA/
+cache_logs/
+logs/
+partition_logs/
+datasets/

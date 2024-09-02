@@ -1,5 +1,0 @@
-Using backend: pytorch
-Traceback (most recent call last):
-  File "train_cache.py", line 79, in <module>
-    edge_feats = edge_feats.cuda()
-RuntimeError: CUDA out of memory. Tried to allocate 129.70 GiB (GPU 0; 44.35 GiB total capacity; 27.64 MiB already allocated; 42.64 GiB free; 30.00 MiB reserved in total by PyTorch) If reserved memory is >> allocated memory try setting max_split_size_mb to avoid fragmentation.  See documentation for Memory Management and PYTORCH_CUDA_ALLOC_CONF
