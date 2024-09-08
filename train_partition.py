@@ -1,4 +1,5 @@
 import argparse
+import math
 import os
 
 parser=argparse.ArgumentParser()
@@ -13,7 +14,7 @@ parser.add_argument('--eval_neg_samples', type=int, default=1, help='how many ne
 parser.add_argument('--bs',type=int,default=None)
 parser.add_argument("--pnum",type=int,default=10)
 parser.add_argument("--maxpnum",type=int,default=3)
-parser.add_argument("--tolerance",type=float,default=1.0)
+parser.add_argument("--tolerance",type=float,default=10.0)
 args=parser.parse_args()
 
 os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
@@ -30,7 +31,7 @@ from sklearn.metrics import average_precision_score, roc_auc_score
 from torch.profiler import profile, record_function, ProfilerActivity
 from pytorch_memlab import LineProfiler, profile
 from torchstat import stat
-from partition import *
+from partitioner.partition import *
 from itertools import chain
 
 def set_seed(seed):
@@ -65,14 +66,17 @@ pg = PartitionedGraph(tcsr,args.pnum)
 
 pg.prepare_graph()
 partition_array = pg.partition_array
-# TODO insert back cross-partition edges
-plan = pg.create_train_plan(args.maxpnum,args.tolerance,False)
-exit(0)
+threshold = pg.num_edge() / args.pnum * args.maxpnum
+plan = pg.create_train_plan(args.maxpnum,threshold,False)
+# exit(0)
 
-ppd = []
+mp_list = []
 for schedule in plan:
-    partitions = [pg.partitions[pid] for pid in schedule]
-    ppd.append(PPDataset(*partitions))
+    mp = MergePartition([pg.partitions[pid] for pid in schedule], True)
+    mp_list.append(mp)
+
+ppd = PPDataset(mp_list)
+
 
 def get_inductive_links(df, train_edge_end, val_edge_end):
     train_df = df[:train_edge_end]
@@ -158,8 +162,6 @@ def eval(mode='val'):
         total_loss = 0
         for _, rows in eval_df.groupby(eval_df.index // train_param['batch_size']):
             root_nodes = np.concatenate([rows.src.values, rows.dst.values, neg_link_sampler.sample(len(rows) * neg_samples)]).astype(np.int32)
-            asdas= partition_array[rows['src'].to_numpy().astype(int)]
-            cross_partition_mask = (partition_array[rows['src'].to_numpy().astype(int)] != partition_array[rows['dst'].to_numpy().astype(int)]) + (partition_array[rows['src'].to_numpy().astype(int)] != partition_array[root_nodes[len(root_nodes) // 3 * 2:].astype(int)])
             ts = np.tile(rows.time.values, neg_samples + 2).astype(np.float32)
             if sampler is not None:
                 if 'no_neg' in sample_param and sample_param['no_neg']:
@@ -180,7 +182,7 @@ def eval(mode='val'):
             total_loss += creterion(pred_neg, torch.zeros_like(pred_neg))
             y_pred = torch.cat([pred_pos, pred_neg], dim=0).sigmoid().cpu()
             y_true = torch.cat([torch.ones(pred_pos.size(0)), torch.zeros(pred_neg.size(0))], dim=0)
-            cross_partitions_aps.append(average_precision_score(y_true[cross_partition_mask],y_pred[cross_partition_mask]))
+            # cross_partitions_aps.append(average_precision_score(y_true[cross_partition_mask],y_pred[cross_partition_mask]))
             aps.append(average_precision_score(y_true, y_pred))
             if neg_samples > 1:
                 aucs_mrrs.append(torch.reciprocal(torch.sum(pred_pos.squeeze() < pred_neg.squeeze().reshape(neg_samples, -1), dim=0) + 1).type(torch.float))
@@ -197,12 +199,12 @@ def eval(mode='val'):
         if mode == 'val':
             val_losses.append(float(total_loss))
     ap = float(torch.tensor(aps).mean())
-    cross_partition_ap = float(torch.tensor(cross_partitions_aps).mean())
+    # cross_partition_ap = float(torch.tensor(cross_partitions_aps).mean())
     if neg_samples > 1:
         auc_mrr = float(torch.cat(aucs_mrrs).mean())
     else:
         auc_mrr = float(torch.tensor(aucs_mrrs).mean())
-    return ap, auc_mrr, cross_partition_ap
+    return ap, auc_mrr
 
 if not os.path.isdir('models'):
     os.mkdir('models')
@@ -268,6 +270,7 @@ if need_profile:
 early_stop = EarlyStopMonitor(5)
 # for e in range(train_param['epoch']):
 for e in range(n_epoch):
+    # torch.cuda.empty_cache()
     print('Epoch {:d}:'.format(e))
     time_sample = 0
     time_prep = 0
@@ -289,8 +292,8 @@ for e in range(n_epoch):
     # batch训练
     # len(group_indexes) 好像就是1,我不知道为什么这里要这样写,所以这里就是根据batch_id每次取一个batch训练
     #for i, (_, rows) in enumerate(df[:train_edge_end].groupby(group_indexes[random.randint(0, len(group_indexes) - 1)])):
-    edges = chain(*[pd.iter_edges(train_param["batch_size"]) for pd in ppd])
     neg_cross_edge_num = 0
+    edges = ppd.iter_edges(math.floor(train_param["batch_size"] / ppd.mp_num()))
     for i, rows in enumerate(edges):
         if need_profile:
             prof.step()
@@ -299,8 +302,10 @@ for e in range(n_epoch):
                 print(f"profile end")
                 exit(0)
         t_tot_s = time.time()
-        root_nodes = np.concatenate([rows[0].numpy(), rows[1].numpy(), neg_link_sampler.sample(len(rows[0]))]).astype(np.int32)
-        ts = np.concatenate([rows[3].numpy(), rows[3].numpy(), rows[3].numpy()]).astype(np.float32)
+        root_nodes = np.concatenate([rows[0], rows[1], neg_link_sampler.sample(len(rows[0]))]).astype(np.int32)
+        ts = np.concatenate([rows[3], rows[3], rows[3]]).astype(np.float32)
+        # root_nodes = np.concatenate([rows[0].numpy(), rows[1].numpy(), neg_link_sampler.sample(len(rows[0]))]).astype(np.int32)
+        # ts = np.concatenate([rows[3].numpy(), rows[3].numpy(), rows[3].numpy()]).astype(np.float32)
         # cp_neg_edge_array = [partition_array[rows[0].to(torch.int).numpy()] != partition_array[root_nodes[-len(rows[0]):]]]
         # cp_neg_edge_num = sum(cp_neg_edge_array)
         # neg_cross_edge_num += cp_neg_edge_num
@@ -354,7 +359,8 @@ for e in range(n_epoch):
         # 更新memory和mailbox
         if mailbox is not None:
             # eid = rows['Unnamed: 0'].values
-            eid = rows[2].numpy()
+            # eid = rows[2].numpy()
+            eid = rows[2]
             mem_edge_feats = edge_feats[eid] if edge_feats is not None else None
             block = None
             if memory_param['deliver_to'] == 'neighbors':
@@ -365,14 +371,14 @@ for e in range(n_epoch):
             mailbox.update_memory(model.memory_updater.last_updated_nid, model.memory_updater.last_updated_memory, root_nodes, model.memory_updater.last_updated_ts)
             time_update_mem += time.time() - t_update_mem_start
         time_tot += time.time() - t_tot_s
-    ap, auc, cpap = eval('val')
+    ap, auc = eval('val')
     if e > 2 and ap > best_ap:
         best_e = e
         best_ap = ap
         torch.save(model.state_dict(), path_saver)
     time_total += time_tot
     time_other = time_tot - time_sample - time_prep - time_prep_mail - time_forward - time_backward - time_update_mem - time_update_mail
-    print('\ttrain loss:{:.4f}  val ap:{:4f}  val auc:{:4f} val cpap:{:4f}'.format(total_loss, ap, auc, cpap))
+    print('\ttrain loss:{:.4f}  val ap:{:4f}  val auc:{:4f}'.format(total_loss, ap, auc))
     print('\ttotal time:{:.3f}s sample time:{:.3f}s prep time:{:.3f}s prep mail time: {:.3f}s'.format(time_tot, time_sample, time_prep, time_prep_mail))
     print('\tforward time:{:.3f}s backward time: {:.3f}s update mem time : {:.3f}s update mail time: {:.3f}s'.format(time_forward, time_backward, time_update_mem,time_update_mail))
     print('\tother time: {:.3f}s'.format(time_other))
@@ -420,10 +426,10 @@ if mailbox is not None:
     model.memory_updater.last_updated_nid = None
     eval('train')
     eval('val')
-ap, auc, cpap = eval('test')
+ap, auc = eval('test')
 if args.eval_neg_samples > 1:
-    print('\ttest AP:{:4f}  test MRR:{:4f} test CPAP:{:4f}'.format(ap, auc, cpap))
+    print('\ttest AP:{:4f}  test MRR:{:4f}'.format(ap, auc))
 else:
-    print('\ttest AP:{:4f}  test AUC:{:4f} test CPAP:{:4f}'.format(ap, auc, cpap))
+    print('\ttest AP:{:4f}  test AUC:{:4f}'.format(ap, auc))
 
 

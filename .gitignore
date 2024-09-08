@@ -10,3 +10,4 @@ cache_logs/
 logs/
 partition_logs/
 datasets/
+build/

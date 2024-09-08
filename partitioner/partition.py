@@ -3,7 +3,6 @@ import numpy as np
 from typing import Callable, Optional, Tuple, Union, Dict, List, Iterable
 from collections import defaultdict
 import torch
-from dgl.data import KarateClubDataset
 from utils import load_graph
 from torch.utils.data import Dataset, DataLoader
 from collections import deque
@@ -12,22 +11,26 @@ import dgl
 from dgl import DGLGraph
 import matplotlib.pyplot as plt
 import networkx as nx
+from partition2 import TCSR, Partition, TEdge
+from typing import Tuple, List, Set
+import math
 
 
-class Partition:
-    def __init__(self, num_nodes, edges, eids, ets, node_map):
-        self.num_nodes = num_nodes
-        self.num_edges = len(edges)
-        self.edges = edges  # coo format
-        self.eids = eids  # global edge id
-        self.ets = ets
-        self.node_map = node_map
 
-    def __len__(self):
-        return self.num_edges
+# class Partition:
+#     def __init__(self, num_nodes, edges, eids, ets, node_map):
+#         self.num_nodes = num_nodes
+#         self.num_edges = len(edges)
+#         self.edges = edges  # coo format
+#         self.eids = eids  # global edge id
+#         self.ets = ets
+#         self.node_map = node_map
 
-    def __getitem__(self, idx):
-        return self.node_map[self.edges[idx][0]], self.node_map[self.edges[idx][1]], self.eids[idx], self.ets[idx]
+#     def __len__(self):
+#         return self.num_edges
+
+#     def __getitem__(self, idx):
+#         return self.node_map[self.edges[idx][0]], self.node_map[self.edges[idx][1]], self.eids[idx], self.ets[idx]
 
 
 class PartitionedGraph():
@@ -39,16 +42,13 @@ class PartitionedGraph():
         self._n_cut = 0
         self._metis_graph = None
         # self._cluster_graph = None
-        self._partitions = []
+        self._partitions: List[Partition] = [Partition(i,partition_num) for i in range(partition_num)]
         self._partition_array = []
         # self._node_map = {}
         # self._edge_map = {}
         self._finished = np.zeros(partition_num, dtype=np.int32)
         self._relation_matrix = np.zeros((partition_num, partition_num), dtype=np.float32)
-        self._partition_edge_matrix = []
-
-
-
+        # self._partition_edge_matrix = []
 
     @property
     def partitions(self):
@@ -58,14 +58,17 @@ class PartitionedGraph():
     def partition_array(self):
         return self._partition_array
 
+    def num_edge(self):
+        return self._edge_num
+
     def _compute_relation_matrix(self):
         for i in range(self._partition_num):
             # print(i)
             for j in range(self._partition_num):
-                # if i == j:
-                #     self._relation_matrix[i][j] = 0
-                #     continue
-                self._relation_matrix[i][j] = len(self._partition_edge_matrix[i][j])
+                if i == j:
+                    self._relation_matrix[i][j] = self._partitions[i].edge_num()
+                else:
+                    self._relation_matrix[i][j] = self._partitions[i].cut_edge_num(j)
                 # self._relation_matrix[i][i] = 0
 
         # self._relation_matrix = self._relation_matrix / np.maximum(np.sum(self._relation_matrix, axis=1, keepdims=True),1)
@@ -134,21 +137,21 @@ class PartitionedGraph():
             print(f"metis partition time {t_elapsed}s")
             partition_array = np.array(partition_array)
             self._n_cut, self._partition_array = n_cut, partition_array
-        elif alg == "kl":
-            partition_array = self._kl_partition(self._networkx_graph,self._partition_num)
-        elif alg == "edge_betweenness":  
-            partition_array = self._edge_betweenness_partition(self._networkx_graph,self._partition_num)
-        elif alg == "modularity":
-            partition_array = self._greedy_modularity_communities(self._networkx_graph,self._partition_num)
-        elif alg == "tree":
-            raise NotImplementedError
-            # partition_array =
-        elif alg == "lp":
-            partition_array = self._label_propagation_communities(self._networkx_graph)
-        elif alg == "louvain":
-            partition_array = self._louvain_communities(self._networkx_graph)
-        elif alg == "fluidc":
-            partition_array = self._asyn_fluidc(self._networkx_graph, self._partition_num)
+        # elif alg == "kl":
+        #     partition_array = self._kl_partition(self._networkx_graph,self._partition_num)
+        # elif alg == "edge_betweenness":  
+        #     partition_array = self._edge_betweenness_partition(self._networkx_graph,self._partition_num)
+        # elif alg == "modularity":
+        #     partition_array = self._greedy_modularity_communities(self._networkx_graph,self._partition_num)
+        # elif alg == "tree":
+        #     raise NotImplementedError
+        #     # partition_array =
+        # elif alg == "lp":
+        #     partition_array = self._label_propagation_communities(self._networkx_graph)
+        # elif alg == "louvain":
+        #     partition_array = self._louvain_communities(self._networkx_graph)
+        # elif alg == "fluidc":
+        #    partition_array = self._asyn_fluidc(self._networkx_graph, self._partition_num)
         else:
             raise NotImplementedError
         # print(f"edge cut: {self._n_cut}")
@@ -161,9 +164,9 @@ class PartitionedGraph():
         # removed_dst = []
         partition_node_set = [set() for _ in range(self._partition_num)]  # (partition_num,)
         # global_to_local = [{}] * self._partition_num
-        partition_edge_matrix = [[[] for _ in range(self._partition_num)] for _ in
-                                 range(self._partition_num)]  # (partition_num,partition_num)
-
+        # partition_edge_matrix = [[[] for _ in range(self._partition_num)] for _ in
+        #                          range(self._partition_num)]  # (partition_num,partition_num)
+        
         indptr, indices, eid, ets = self._origin_graph.ind, self._origin_graph.nbr, self._origin_graph.eid, self._origin_graph.ets
         # partition edge
         for i in range(len(indptr) - 1):
@@ -172,42 +175,42 @@ class PartitionedGraph():
                 assert src_partition < self._partition_num, "src_partition >= self._partition_num"
                 assert dst_partition < self._partition_num, "dst_partition >= self._partition_num"
                 if src_partition == dst_partition:
-                    partition_node_set[src_partition].add(i)
-                    partition_node_set[src_partition].add(indices[j])
-                    partition_edge_matrix[src_partition][dst_partition].append((i, indices[j], eid[j], ets[j]))
+                    self._partitions[src_partition].add_node(indices[j])
+                    self._partitions[src_partition].add_node(i)
+                    self._partitions[src_partition].add_edge(TEdge(i,indices[j],ets[j],eid[j]))
                 else:
-                    partition_edge_matrix[src_partition][dst_partition].append((i, indices[j], eid[j], ets[j]))
+                    self._partitions[src_partition].add_node(i)
+                    self._partitions[dst_partition].add_node(indices[j])
+                    self._partitions[src_partition].add_cut_edge(TEdge(i, indices[j], ets[j], eid[j]),dst_partition)
 
-        self._partition_edge_matrix = partition_edge_matrix
+
 
         # remap node id
-        for i in range(self._partition_num):
-            node_cnt = 0
-            global_id_to_local = {}
-            local_edges = []
-            eids = []
-            etss = []
-            for u, v, eid, ets in sorted(partition_edge_matrix[i][i], key=lambda e: e[3]):
-                if u not in global_id_to_local:
-                    global_id_to_local[u] = node_cnt
-                    node_cnt += 1
-                if v not in global_id_to_local:
-                    global_id_to_local[v] = node_cnt
-                    node_cnt += 1
-                local_edges.append((global_id_to_local[u], global_id_to_local[v]))
-                eids.append(eid)
-                etss.append(ets)
-            assert node_cnt == len(partition_node_set[i]), "node_cnt != len(partition_node_set[i])"
-            node_map = [0] * node_cnt
-            for k, v in global_id_to_local.items():
-                node_map[v] = k
-            p = Partition(node_cnt, local_edges, eids, etss, node_map)
-            self._partitions.append(p)
+        # for i in range(self._partition_num):
+        #     node_cnt = 0
+        #     global_id_to_local = {}
+        #     local_edges = []
+        #     eids = []
+        #     etss = []
+        #     for u, v, eid, ets in sorted(partition_edge_matrix[i][i], key=lambda e: e[3]):
+        #         if u not in global_id_to_local:
+        #             global_id_to_local[u] = node_cnt
+        #             node_cnt += 1
+        #         if v not in global_id_to_local:
+        #             global_id_to_local[v] = node_cnt
+        #             node_cnt += 1
+        #         local_edges.append((global_id_to_local[u], global_id_to_local[v]))
+        #         eids.append(eid)
+        #         etss.append(ets)
+        #     assert node_cnt == len(partition_node_set[i]), "node_cnt != len(partition_node_set[i])"
+        #     node_map = [0] * node_cnt
+        #     for k, v in global_id_to_local.items():
+        #         node_map[v] = k
 
-        reserved_edges_num = sum([p.num_edges for p in self._partitions])
+        reserved_edges_num = sum([p.edge_num() for p in self._partitions])
         self._n_cut = self._edge_num - reserved_edges_num
-        print(
-            f"total edges: {self._edge_num}, reserved_edges_num:{reserved_edges_num}, cut_edge: {self._edge_num - reserved_edges_num}({(reserved_edges_num / self._edge_num):.2f})")
+        # print(
+        #     f"total edges: {self._edge_num}, reserved_edges_num:{reserved_edges_num}, cut_edge: {self._edge_num - reserved_edges_num}({(reserved_edges_num / self._edge_num):.2f})")
 
         # for i in range(len(src)):
         #     if partition_array[src[i]] != partition_array[dst[i]]:
@@ -246,86 +249,86 @@ class PartitionedGraph():
         # for pid in partition_ids:
 
     def create_train_plan(self, parallel_partition_num=1, threshold=None, add_cross_partition_edge=False):
-        scheduler = Scheduler(self._partition_num, self._relation_matrix, parallel_partition_num, threshold)
+        scheduler = Scheduler(self._partition_num, self._relation_matrix, parallel_partition_num, threshold, self._edge_num)
         train_plan = scheduler.generate_plan()
         return train_plan
     
-    def _kl_partition(self, ng: nx.DiGraph, num: int) -> np.ndarray:
-        # TODO: 目前的kl划分在处理最后一次划分的时候，是从上一次的分区中取第一个分区划分，可能需要做改进，比如选择边或者点最多的分区进行划分
-        ng = ng.to_undirected()
-        partition_queue = deque()
-        partition_queue.append(ng)
-        while len(partition_queue) < num:
-            g = partition_queue.popleft()
-            g1, g2 = nx.community.kernighan_lin_bisection(g,weight='weight')
-            g1 = ng.subgraph(g1)
-            g2 = ng.subgraph(g2)
-            partition_queue.append(g1)
-            partition_queue.append(g2)
-
-        partition_array = np.full(ng.number_of_nodes(),-1,dtype=np.int32)
-        for pid, g in enumerate(partition_queue):
-            partition_array[list(g.nodes)] = pid
-
-        assert np.all((partition_array >= 0) & (partition_array < self._partition_num))
-        return partition_array
-
-    def _edge_betweenness_partition(self,ng: nx.DiGraph, num: int) -> np.ndarray:
-        ng = ng.to_undirected()
-        weights = nx.get_edge_attributes(ng,"weight")
-        weights = {k:1/v for k, v in weights.items()}
-        nx.set_edge_attributes(ng,weights,"weight")
-        # print(num)
-        partitions = nx.community.edge_betweenness_partition(ng, num)
-        # print(len(partitions))
-        # print(partitions)
-        
-        partition_array = np.full(ng.number_of_nodes(),-1,dtype=np.int32)
-        for pid, p in enumerate(partitions):
-            partition_array[list(p)] = pid
-
-        assert np.all((partition_array >= 0) & (partition_array < self._partition_num))
-        return partition_array
-
-    def _greedy_modularity_communities(self,ng: nx.DiGraph, num: int) -> np.ndarray:
-        ng = ng.to_undirected()
-        partition_list = nx.community.greedy_modularity_communities(ng,"weight",cutoff=num,best_n=num)
-        partition_array = np.full(ng.number_of_nodes(),-1,dtype=np.int32)
-        for pid, p in enumerate(partition_list):
-            partition_array[list(p)] = pid
-
-        assert np.all((partition_array >= 0) & (partition_array < self._partition_num))
-        return partition_array
-
-    def _label_propagation_communities(self, ng: nx.DiGraph) -> np.ndarray:
-        ng = ng.to_undirected()
-        partition_dict = nx.community.label_propagation_communities(ng)
-        partition_array = np.full(ng.number_of_nodes(), -1, dtype=np.int32)
-        print(f"lp get {len(partition_dict)} communities")
-        for pid, nodes in enumerate(partition_dict):
-            partition_array[list(nodes)] = pid
-        assert np.all((partition_array >= 0) & (partition_array < self._partition_num))
-        return partition_array
-
-    def _louvain_communities(self, ng: nx.DiGraph) -> np.ndarray:
-        ng = ng.to_undirected()
-        partition_dict = nx.community.louvain_communities(ng)
-        partition_array = np.full(ng.number_of_nodes(), -1, dtype=np.int32)
-        print(f"louvain get {len(partition_dict)} communities")
-        for pid, nodes in enumerate(partition_dict):
-            partition_array[list(nodes)] = pid
-        assert np.all((partition_array >= 0) & (partition_array < self._partition_num))
-        return partition_array
-
-    def _asyn_fluidc(self, ng: nx.DiGraph,num: int) -> np.ndarray:
-        ng = ng.to_undirected()
-        partition_dict = nx.community.asyn_fluidc(ng,num,max_iter=200,seed=123)
-        partition_array = np.full(ng.number_of_nodes(), -1, dtype=np.int32)
-        print(f"fluidc get {len(partition_dict)} communities")
-        for pid, nodes in enumerate(partition_dict):
-            partition_array[list(nodes)] = pid
-        assert np.all((partition_array >= 0) & (partition_array < self._partition_num))
-        return partition_array
+    # def _kl_partition(self, ng: nx.DiGraph, num: int) -> np.ndarray:
+    #     # TODO: 目前的kl划分在处理最后一次划分的时候，是从上一次的分区中取第一个分区划分，可能需要做改进，比如选择边或者点最多的分区进行划分
+    #     ng = ng.to_undirected()
+    #     partition_queue = deque()
+    #     partition_queue.append(ng)
+    #     while len(partition_queue) < num:
+    #         g = partition_queue.popleft()
+    #         g1, g2 = nx.community.kernighan_lin_bisection(g,weight='weight')
+    #         g1 = ng.subgraph(g1)
+    #         g2 = ng.subgraph(g2)
+    #         partition_queue.append(g1)
+    #         partition_queue.append(g2)
+    #
+    #     partition_array = np.full(ng.number_of_nodes(),-1,dtype=np.int32)
+    #     for pid, g in enumerate(partition_queue):
+    #         partition_array[list(g.nodes)] = pid
+    #
+    #     assert np.all((partition_array >= 0) & (partition_array < self._partition_num))
+    #     return partition_array
+    #
+    # def _edge_betweenness_partition(self,ng: nx.DiGraph, num: int) -> np.ndarray:
+    #     ng = ng.to_undirected()
+    #     weights = nx.get_edge_attributes(ng,"weight")
+    #     weights = {k:1/v for k, v in weights.items()}
+    #     nx.set_edge_attributes(ng,weights,"weight")
+    #     # print(num)
+    #     partitions = nx.community.edge_betweenness_partition(ng, num)
+    #     # print(len(partitions))
+    #     # print(partitions)
+    #
+    #     partition_array = np.full(ng.number_of_nodes(),-1,dtype=np.int32)
+    #     for pid, p in enumerate(partitions):
+    #         partition_array[list(p)] = pid
+    #
+    #     assert np.all((partition_array >= 0) & (partition_array < self._partition_num))
+    #     return partition_array
+    #
+    # def _greedy_modularity_communities(self,ng: nx.DiGraph, num: int) -> np.ndarray:
+    #     ng = ng.to_undirected()
+    #     partition_list = nx.community.greedy_modularity_communities(ng,"weight",cutoff=num,best_n=num)
+    #     partition_array = np.full(ng.number_of_nodes(),-1,dtype=np.int32)
+    #     for pid, p in enumerate(partition_list):
+    #         partition_array[list(p)] = pid
+    #
+    #     assert np.all((partition_array >= 0) & (partition_array < self._partition_num))
+    #     return partition_array
+    #
+    # def _label_propagation_communities(self, ng: nx.DiGraph) -> np.ndarray:
+    #     ng = ng.to_undirected()
+    #     partition_dict = nx.community.label_propagation_communities(ng)
+    #     partition_array = np.full(ng.number_of_nodes(), -1, dtype=np.int32)
+    #     print(f"lp get {len(partition_dict)} communities")
+    #     for pid, nodes in enumerate(partition_dict):
+    #         partition_array[list(nodes)] = pid
+    #     assert np.all((partition_array >= 0) & (partition_array < self._partition_num))
+    #     return partition_array
+    #
+    # def _louvain_communities(self, ng: nx.DiGraph) -> np.ndarray:
+    #     ng = ng.to_undirected()
+    #     partition_dict = nx.community.louvain_communities(ng)
+    #     partition_array = np.full(ng.number_of_nodes(), -1, dtype=np.int32)
+    #     print(f"louvain get {len(partition_dict)} communities")
+    #     for pid, nodes in enumerate(partition_dict):
+    #         partition_array[list(nodes)] = pid
+    #     assert np.all((partition_array >= 0) & (partition_array < self._partition_num))
+    #     return partition_array
+    #
+    # def _asyn_fluidc(self, ng: nx.DiGraph,num: int) -> np.ndarray:
+    #     ng = ng.to_undirected()
+    #     partition_dict = nx.community.asyn_fluidc(ng,num,max_iter=200,seed=123)
+    #     partition_array = np.full(ng.number_of_nodes(), -1, dtype=np.int32)
+    #     print(f"fluidc get {len(partition_dict)} communities")
+    #     for pid, nodes in enumerate(partition_dict):
+    #         partition_array[list(nodes)] = pid
+    #     assert np.all((partition_array >= 0) & (partition_array < self._partition_num))
+    #     return partition_array
 
 
     # def _lukes_partitioning(self,ng: nx.DiGraph, num: int) -> np.ndarray:
@@ -339,16 +342,14 @@ class PartitionedGraph():
     #     return partition_array
 
 
-
-    
-
-
 class Scheduler():
-    def __init__(self, partition_num, relation_martrix, parallel_partition_num, threshold):
+    def __init__(self, partition_num, relation_martrix, parallel_partition_num, threshold, edge_num):
         self.partition_num = partition_num
         self.relation_matrix = relation_martrix
         self.threshold = threshold
         self.parallel_partition_num = parallel_partition_num
+        self.edge_num = edge_num
+        self.balance_edge_num = math.ceil(threshold * edge_num)
 
     def compute_relation_score(self, pid, plan):
         scores = [self.relation_matrix[pid][p] + self.relation_matrix[p][pid] for p in plan]
@@ -358,6 +359,9 @@ class Scheduler():
         return sum(scores)
 
     def generate_plan(self):
+        """
+        greedy base method to select partitions that are most related
+        """
         scheduled = [0] * self.partition_num
         train_plan = []
         for pid in range(self.partition_num):
@@ -366,16 +370,18 @@ class Scheduler():
             plan = []
             plan_score = 0
             plan.append(pid)
+            plan_edge_num = self.relation_matrix[pid][pid]
             for k in range(self.parallel_partition_num - 1):
                 best_pid = -1
-                best_relation_score = 1e6
+                best_relation_score = 0
                 for j in range(pid + 1, self.partition_num):
                     if scheduled[j] == 0:
                         relation_score = self.compute_relation_score(j, plan)
-                        if relation_score < best_relation_score:
+                        if relation_score > best_relation_score:
                             best_pid = j
                             best_relation_score = relation_score
-                if best_pid != -1 and self.threshold is not None and plan_score + best_relation_score < self.threshold:
+                # if best_pid != -1 and self.threshold is not None and plan_score + best_relation_score < self.threshold:
+                if best_pid != -1 and plan_edge_num + self.relation_matrix[pid][best_pid] + self.relation_matrix[best_pid][pid] < self.balance_edge_num:
                     scheduled[best_pid] = 1
                     plan.append(best_pid)
                     plan_score += best_relation_score
@@ -391,71 +397,124 @@ class Scheduler():
         return train_plan
 
 
-class PPDataLoader():
-    def __init__(self, partitions, batch_size):
-        self.partiton_iters = [iter(DataLoader(p, batch_size=batch_size)) for p in partitions]
-        self.batch_size = batch_size * len(partitions)
+class MergePartition:
+    def __init__(self, partitions:List[Partition], add_cross_partition:bool=True):
+        all_edges = []
+        pids = [p.id() for p in partitions]
+        for p in partitions:
+            for pid2 in pids:
+                if p.id() == pid2:
+                    all_edges.extend(p.edges())
+                else:
+                    all_edges.extend(p.cut_edges(pid2))
+
+        all_edges = sorted(all_edges,key=lambda e: e.ets)
+        self.srcs = [e.src for e in all_edges]
+        self.dsts = [e.dst for e in all_edges]
+        self.etss = [e.ets for e in all_edges]
+        self.eids = [e.eid for e in all_edges]
+
+    def __len__(self):
+        return len(self.srcs)
+
+
+class MergePartitionLoader:
+    def __init__(self, merge_partition,batch_size):
+        self.merge_partition = merge_partition
+        self.batch_size = batch_size
+        self.size = len(self.merge_partition)
+        self.cnt = 0
 
     def __iter__(self):
         return self
 
     def __next__(self):
-
-        batch_results = [torch.empty(0) for _ in range(4)]
-        for piter in self.partiton_iters:
-            try:
-                batch = next(piter)
-                for i in range(4):
-                    batch_results[i] = torch.cat([batch_results[i], batch[i]])
-            except StopIteration:
-                continue
-
-        if batch_results[0].size(0) == 0:
+        if self.cnt < self.size:
+            start = self.cnt
+            end = min(self.size, self.cnt + self.batch_size)
+            self.cnt = end
+            return (self.merge_partition.srcs[start:end],
+                    self.merge_partition.dsts[start:end],
+                    self.merge_partition.etss[start:end],
+                    self.merge_partition.eids[start:end])
+        else:
             raise StopIteration
 
-        return batch_results
+
 
 
 class PPDataset(Dataset):
-    def __init__(self, *partitions):
+    def __init__(self, merge_partitions:List[MergePartition]):
         super().__init__()
-        self.partitions = partitions
-        self.size = max(len(p) for p in partitions)
+        self.merge_partitions = merge_partitions
+        self.size = max([len(mp) for mp in self.merge_partitions])
 
     def __len__(self):
         return self.size
 
     def __getitem__(self, idx):
-        items = []
-        for p in self.partitions:
-            if p[idx] is not None:
-                items.append(p[idx])
+        return self.merge_partitions.edges[idx]
 
-        return items
+    def mp_num(self):
+        return len(self.merge_partitions)
 
     def iter_edges(self, batch_size):
-        return PPDataLoader(self.partitions, batch_size)
+        mp_iters = [MergePartitionLoader(mp, batch_size) for mp in self.merge_partitions]
+        batch_results = [torch.empty(0) for _ in range(4)]
+        srcs, dsts, etss, eids = [], [], [], []
+
+        for mp_iter in mp_iters:
+            try:
+                batch = next(mp_iter)
+                srcs.extend(batch[0])
+                dsts.extend(batch[1])
+                etss.extend(batch[2])
+                eids.extend(batch[3])
+            except StopIteration:
+                continue
+
+        batch_results[0] = np.array(srcs,dtype=np.int32)
+        batch_results[1] = np.array(dsts,dtype=np.int32)
+        batch_results[2] = np.array(eids,dtype=np.int32)
+        batch_results[3] = np.array(etss,dtype=np.float32)
+
+        if len(batch_results[0]) == 0:
+            raise StopIteration
+
+        yield batch_results
+
+# class PPDataLoader():
+#     def __init__(self, merge_partitions, batch_size):
+#         self.batch_size = batch_size
+#         self.merge_partitions = merge_partitions
+#
+#
+#     def __iter__(self):
+#         return self
+#
+#     def __next__(self):
+#
+#         batch_results = [torch.empty(0) for _ in range(4)]
+#         srcs = []
+#         dsts = []
+#         etss = []
+#         eids = []
+#         for mp in self.merge_partitions:
+#             try:
+#                 batch = next(mpiter)
+#                 srcs.append(batch[0])
+#                 dsts.append(batch[1])
+#                 etss.append()
+#             except StopIteration:
+#                 continue
+#
+#         if batch_results[0].size(0) == 0:
+#             raise StopIteration
+#
+#         return batch_results
+#
 
 
-class TCSR():
-    def __init__(self, indptr, indice, eid, ets) -> None:
-        self.ind = indptr
-        self.nbr = indice
-        self.eid = eid
-        self.ets = ets
-
-    def __len__(self):
-        return len(self.eid)
-
-    @classmethod
-    def from_dglgraph(cls, g:dgl.DGLGraph, temporal=False):
-        indptr, indices, eid = g.adj_tensors("csr")
-        if eid is None:
-            eid = torch.arange(0, g.num_edges(),dtype=torch.int32)
-        ets = None
-        if not temporal:
-            ets = torch.zeros(g.num_edges(),dtype=torch.int32)
-        return cls(indptr,indices,eid,ets)
 
 
 if __name__ == '__main__':
