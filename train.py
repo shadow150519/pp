@@ -203,7 +203,8 @@ if 'reorder' in train_param:
         group_indexes.append(np.concatenate([additional_idx, base_idx])[:base_idx.shape[0]])
 
 # reset timer
-sampler.reset_statistic()
+if sampler is not None:
+    sampler.reset_statistic()
 model.reset_time()
 if mailbox is not None:
     mailbox.reset_time()

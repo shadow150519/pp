@@ -14,7 +14,8 @@ parser.add_argument('--eval_neg_samples', type=int, default=1, help='how many ne
 parser.add_argument('--bs',type=int,default=None)
 parser.add_argument("--pnum",type=int,default=10)
 parser.add_argument("--maxpnum",type=int,default=3)
-parser.add_argument("--tolerance",type=float,default=10.0)
+parser.add_argument("--tolerance",type=float,default=10.0, help='for pp1 tolerance is cross_partition_edges/edge_num. for pp2 tolerance is partition_total_edge_num/edge_num')
+parser.add_argument("--schedule_alg",type=str,default="pp1",help='pp1 or pp2')
 args=parser.parse_args()
 
 os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
@@ -31,7 +32,9 @@ from sklearn.metrics import average_precision_score, roc_auc_score
 from torch.profiler import profile, record_function, ProfilerActivity
 from pytorch_memlab import LineProfiler, profile
 from torchstat import stat
-from partitioner.partition import *
+# from partitioner.partition import *
+from partitioner.partition import TCSR, Partition
+from partitioner.partitioner import Partitioner, PP1Dataset, PP2Dataset, PP1DataLoader, MergePartition, PP1DatasetChain
 from itertools import chain
 
 def set_seed(seed):
@@ -62,20 +65,33 @@ val_edge_end = df[df['ext_roll'].gt(1)].index[0]
 if args.bs is not None:
     train_param["batch_size"] = args.bs
 
-pg = PartitionedGraph(tcsr,args.pnum)
+pg = Partitioner(args.data, args.pnum)
 
-pg.prepare_graph()
-partition_array = pg.partition_array
-threshold = pg.num_edge() / args.pnum * args.maxpnum
-plan = pg.create_train_plan(args.maxpnum,threshold,False)
-# exit(0)
+partitions, partition_array = pg.partition_graph()
+pg.print_stats()
+# if args.schedule_alg == "pp1":
+#     threshold = int(args.tolerance * pg.edge_num()) # cross partition edges a schedule can tolerance
+#     plan = pg.create_train_plan(args.maxpnum,threshold=threshold,alg="pp1")
+#     pp1d_list = []
+#     for schedule in plan:
+#         pp1d = PP1Dataset([partitions[pid] for pid in schedule])
+#         pp1d_list.append(pp1d)
+#     ppd = PP1DatasetChain(pp1datasets=pp1d_list)
+# elif args.schedule_alg == "pp2": # max edges a schedule can tolerance
+#     edge_balance = pg.edge_num()  * args.tolerance
+#     plan = pg.create_train_plan(args.maxpnum,threshold=edge_balance,alg="pp2")
+#     mp_list = []
+#     train_edge_cnt = 0
+#     for schedule in plan:
+#         mp = MergePartition([partitions[pid] for pid in schedule], True)
+#         mp_list.append(mp)
+#         train_edge_cnt += len(mp)
+#     print(f"edge num:{pg.edge_num()}, train edge num:{train_edge_cnt}, train ratio:{train_edge_cnt/pg.edge_num():.3f}")
+#     ppd = PP2Dataset(mp_list)
+# else:
+#     raise NotImplementedError
 
-mp_list = []
-for schedule in plan:
-    mp = MergePartition([pg.partitions[pid] for pid in schedule], True)
-    mp_list.append(mp)
 
-ppd = PPDataset(mp_list)
 
 
 def get_inductive_links(df, train_edge_end, val_edge_end):
@@ -232,7 +248,8 @@ if 'reorder' in train_param:
         group_indexes.append(np.concatenate([additional_idx, base_idx])[:base_idx.shape[0]])
 
 # reset timer
-sampler.reset_statistic()
+if sampler is not None:
+    sampler.reset_statistic()
 model.reset_time()
 if mailbox is not None:
     mailbox.reset_time()
@@ -267,9 +284,32 @@ if need_profile:
                                     with_stack=True)
     prof.start()
 
-early_stop = EarlyStopMonitor(5)
+early_stop = EarlyStopMonitor(3)
 # for e in range(train_param['epoch']):
 for e in range(n_epoch):
+
+    if args.schedule_alg == "pp1":
+        threshold = int(args.tolerance * pg.edge_num()) # cross partition edges a schedule can tolerance
+        plan = pg.create_train_plan(args.maxpnum,threshold=threshold,alg="pp1")
+        pp1d_list = []
+        for schedule in plan:
+            pp1d = PP1Dataset([partitions[pid] for pid in schedule])
+            pp1d_list.append(pp1d)
+        ppd = PP1DatasetChain(pp1datasets=pp1d_list)
+    elif args.schedule_alg == "pp2": # max edges a schedule can tolerance
+        edge_balance = pg.edge_num()  * args.tolerance
+        plan = pg.create_train_plan(args.maxpnum,threshold=edge_balance,alg="pp2")
+        mp_list = []
+        train_edge_cnt = 0
+        for schedule in plan:
+            mp = MergePartition([partitions[pid] for pid in schedule], True)
+            mp_list.append(mp)
+            train_edge_cnt += len(mp)
+        print(f"edge num:{pg.edge_num()}, train edge num:{train_edge_cnt}, train ratio:{train_edge_cnt/pg.edge_num():.3f}")
+        ppd = PP2Dataset(mp_list)
+    else:
+        raise NotImplementedError
+
     # torch.cuda.empty_cache()
     print('Epoch {:d}:'.format(e))
     time_sample = 0
@@ -293,8 +333,20 @@ for e in range(n_epoch):
     # len(group_indexes) 好像就是1,我不知道为什么这里要这样写,所以这里就是根据batch_id每次取一个batch训练
     #for i, (_, rows) in enumerate(df[:train_edge_end].groupby(group_indexes[random.randint(0, len(group_indexes) - 1)])):
     neg_cross_edge_num = 0
-    edges = ppd.iter_edges(math.floor(train_param["batch_size"] / ppd.mp_num()))
+    if args.schedule_alg == "pp2":
+        edges = ppd.iter_edges(train_param["batch_size"]) # TODO: how to set batch size
+    else:
+        edges = ppd.iter_edges(train_param["batch_size"])
+
+    cnt = 0
+    for rows in ppd.iter_edges(train_param["batch_size"]):
+        cnt += 1
+    print(f"total batch num {cnt}, average batch size {train_edge_cnt/cnt:.2f}")
+
     for i, rows in enumerate(edges):
+        # print(f"batch {i}")
+        # if i == 0:
+        #     print(f"batch size: {len(rows[0])}")
         if need_profile:
             prof.step()
             if i > 3+ 2 +20:

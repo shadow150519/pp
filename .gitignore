@@ -11,3 +11,7 @@ logs/
 partition_logs/
 datasets/
 build/
+partition_log2/
+partition_log_v0/
+*.out
+partition_log/
