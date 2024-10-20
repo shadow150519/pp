@@ -121,7 +121,7 @@ class Partitioner:
             for i in range(tcsr.ind[node_id], tcsr.ind[node_id + 1]):
                 if tcsr.nbr[i] in pnodes:
                     score += 1
-            print(f"node {node_id} have {score} edges with partition {p.id()}")
+            # print(f"node {node_id} have {score} edges with partition {p.id()}")
             return score
 
         total_node_num = 0
@@ -241,9 +241,9 @@ class Scheduler():
         self.alg = alg
     def compute_relation_score(self, pid, plan):
         scores = [self.relation_matrix[pid][p] + self.relation_matrix[p][pid] for p in plan]
-        print(f"partition {pid} with plan",end=" ")
-        print(plan,end=" ")
-        print(f"relation score: {sum(scores):.4f}")
+        # print(f"partition {pid} with plan",end=" ")
+        # print(plan,end=" ")
+        # print(f"relation score: {sum(scores):.4f}")
         return sum(scores)
     def generate_plan(self):
         if self.alg == "pp1":
@@ -265,6 +265,7 @@ class Scheduler():
         for pid in partitions:
             if scheduled[pid] == 1:
                 continue
+            scheduled[pid] = 1
             plan = []
             plan_score = 0
             plan.append(pid)
@@ -273,7 +274,7 @@ class Scheduler():
                 best_pid = -1
                 best_relation_score = 0
                 for j in range(self.partition_num):
-                    if scheduled[j] == 0:
+                    if j != pid and scheduled[j] == 0:
                         relation_score = self.compute_relation_score(j, plan)
                         if relation_score > best_relation_score:
                             best_pid = j
@@ -283,7 +284,7 @@ class Scheduler():
                     scheduled[best_pid] = 1
                     plan.append(best_pid)
                     plan_score += best_relation_score + self.relation_matrix[best_pid][best_pid]
-                    print(f"add partition {best_pid} to plan {plan} with score {best_relation_score}")
+                    # print(f"add partition {best_pid} to plan {plan} with score {best_relation_score}")
                 else:
                     break
             train_plan.append(plan)
@@ -351,6 +352,41 @@ class MergePartition:
 
     def __len__(self):
         return len(self.srcs)
+    
+
+def merge_and_sort_partitions(partitions: List[MergePartition]) -> MergePartition:
+    all_srcs = []
+    all_dsts = []
+    all_etss = []
+    all_eids = []
+
+    # 收集所有 MergePartition 实例中的数据
+    for partition in partitions:
+        all_srcs.extend(partition.srcs)
+        all_dsts.extend(partition.dsts)
+        all_etss.extend(partition.etss)
+        all_eids.extend(partition.eids)
+
+    # 根据 etss 进行排序，并对其他三个属性进行相应的排序
+    sorted_indices = sorted(range(len(all_etss)), key=lambda i: all_etss[i])
+
+    sorted_srcs = [all_srcs[i] for i in sorted_indices]
+    sorted_dsts = [all_dsts[i] for i in sorted_indices]
+    sorted_etss = [all_etss[i] for i in sorted_indices]
+    sorted_eids = [all_eids[i] for i in sorted_indices]
+
+    # 创建新的 MergePartition 实例并返回
+    merged_partition = MergePartition.__new__(MergePartition)  # 直接使用 __new__ 不触发 __init__
+    merged_partition.srcs = sorted_srcs
+    merged_partition.dsts = sorted_dsts
+    merged_partition.etss = sorted_etss
+    merged_partition.eids = sorted_eids
+
+    return merged_partition
+
+    
+    
+        
 
 
 class MergePartitionLoader:

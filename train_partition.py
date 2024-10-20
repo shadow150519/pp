@@ -16,6 +16,7 @@ parser.add_argument("--pnum",type=int,default=10)
 parser.add_argument("--maxpnum",type=int,default=3)
 parser.add_argument("--tolerance",type=float,default=10.0, help='for pp1 tolerance is cross_partition_edges/edge_num. for pp2 tolerance is partition_total_edge_num/edge_num')
 parser.add_argument("--schedule_alg",type=str,default="pp1",help='pp1 or pp2')
+parser.add_argument("--nepoch",type=int,default=-1)
 args=parser.parse_args()
 
 os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
@@ -284,8 +285,11 @@ if need_profile:
                                     with_stack=True)
     prof.start()
 
-early_stop = EarlyStopMonitor(3)
+early_stop = EarlyStopMonitor(30)
+epoch_average_batch_size_list = []
 # for e in range(train_param['epoch']):
+if args.nepoch != -1:
+    n_epoch = args.nepoch
 for e in range(n_epoch):
 
     if args.schedule_alg == "pp1":
@@ -342,6 +346,7 @@ for e in range(n_epoch):
     for rows in ppd.iter_edges(train_param["batch_size"]):
         cnt += 1
     print(f"total batch num {cnt}, average batch size {train_edge_cnt/cnt:.2f}")
+    epoch_average_batch_size_list.append(train_edge_cnt//cnt)
 
     for i, rows in enumerate(edges):
         # print(f"batch {i}")
@@ -469,6 +474,7 @@ print('\tother time: {:.3f}s'.format(mean(time_other_list)))
 
     
 print('Loading model at epoch {}...'.format(best_e))
+print(f"epoch average batch size: {sum(epoch_average_batch_size_list)//len(epoch_average_batch_size_list)}")
 model.load_state_dict(torch.load(path_saver))
 model.eval()
 if sampler is not None:

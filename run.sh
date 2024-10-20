@@ -18,6 +18,14 @@ bs_dict["REDDIT_3000"]=7937
 bs_dict["MOOC_3000"]=3036
 bs_dict["LASTFM_3000"]=6600
 bs_dict["WIKI_3000"]=6362
+bs_dict["REDDIT_4000"]=11200
+bs_dict["MOOC_4000"]=4090
+bs_dict["LASTFM_4000"]=7800
+bs_dict["WIKI_4000"]=8600
+bs_dict["REDDIT_5000"]=14110
+bs_dict["MOOC_5000"]=5113
+bs_dict["LASTFM_5000"]=9700
+bs_dict["WIKI_5000"]=10500
 
 
 # for dataset in "WIKI" "REDDIT" "MOOC" "LASTFM"
@@ -25,10 +33,13 @@ for dataset in "REDDIT" "MOOC" "LASTFM" "WIKI"
 do
     for cfg in "JODIE" "APAN" "TGAT" "TGN"
     do
-        for bs in 500 1000 2000 3000
+        if [ "${cfg}" = "TGAT" ] && { [ "${dataset}" = "LASTFM" ] || [ "${dataset}" = "MOOC" ]; }; then
+            continue
+        fi
+        for bs in 500 1000 2000 3000 4000 5000
         do
             cfg_path="config/${cfg}.yml"
-            for i in {1..2}
+            for i in {9..10}
             do
                 log_path="partition_log2/${cfg}"
                 log_file="partition_log2/${cfg}/${dataset}_${bs}_${i}.log"
