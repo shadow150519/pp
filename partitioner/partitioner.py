@@ -1,10 +1,13 @@
 import dgl
+import metis
 import torch
 import numpy as np
 import pandas as pd
 from enum import Enum
 import sys
 import os
+
+from dill import pickle
 
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 from partition import Partition, TEdge
@@ -18,6 +21,7 @@ parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, parent_dir)
 from partition import TCSR
 from typing import List, Tuple, Set, Dict
+import networkx as nx
 
 
 
@@ -53,52 +57,82 @@ class Partitioner:
         self.compute_relation_matrix()
         return self._partitions, partition_array
 
-    def _to_metis_graph(self, tcsr: TCSR) -> dgl.DGLGraph:
+    # def _to_metis_graph_old(self, tcsr: TCSR) -> dgl.DGLGraph:
+    #     indptr, indices, eid = tcsr.ind, tcsr.nbr, tcsr.eid
+    #     g = dgl.graph(('csr', (indptr, indices, eid)))
+    #     g = dgl.to_simple(g, return_counts="weight")
+    #     indptr, indices, _ = g.adj_tensors('csr')
+    #     weight = g.edata["weight"]
+    #
+    #     undirected_graph = defaultdict(int)
+    #     for row in range(len(indptr) - 1):
+    #         for j in range(indptr[row], indptr[row + 1]):
+    #             col = indices[j].item()
+    #             wgt = weight[j].item()
+    #             undirected_graph[(row, col)] += wgt
+    #             undirected_graph[(col, row)] += wgt
+    #
+    #     edges = undirected_graph.keys()
+    #     wgts = [undirected_graph[edge] for edge in edges]
+    #     src = [edge[0] for edge in edges]
+    #     dst = [edge[1] for edge in edges]
+    #     g = dgl.graph((src, dst))
+    #     g.edata["weight"] = torch.tensor(wgts, dtype=torch.int)
+    #
+    #     return g
+
+    def _to_metis_graph(self, tcsr: TCSR) -> nx.Graph:
+        G = nx.Graph()
         indptr, indices, eid = tcsr.ind, tcsr.nbr, tcsr.eid
-        g = dgl.graph(('csr', (indptr, indices, eid)))
-        g = dgl.to_simple(g, return_counts="weight")
-        indptr, indices, _ = g.adj_tensors('csr')
-        weight = g.edata["weight"]
+        # g = dgl.graph(('csr', (indptr, indices, eid)))
+        # g = dgl.to_simple(g, return_counts="weight")
+        # indptr, indices, _ = g.adj_tensors('csr')
+        # weight = g.edata["weight"]
 
         undirected_graph = defaultdict(int)
         for row in range(len(indptr) - 1):
             for j in range(indptr[row], indptr[row + 1]):
                 col = indices[j].item()
-                wgt = weight[j].item()
-                undirected_graph[(row, col)] += wgt
-                undirected_graph[(col, row)] += wgt
+                undirected_graph[(row, col)] += 1
+                undirected_graph[(col, row)] += 1
 
-        edges = undirected_graph.keys()
+        edges = list(undirected_graph.keys())
         wgts = [undirected_graph[edge] for edge in edges]
-        src = [edge[0] for edge in edges]
-        dst = [edge[1] for edge in edges]
-        g = dgl.graph((src, dst))
-        g.edata["weight"] = torch.tensor(wgts, dtype=torch.int)
+        # src = [edge[0] for edge in edges]
+        # dst = [edge[1] for edge in edges]
 
-        return g
+        G.add_nodes_from(torch.arange(0, self.node_num()).tolist())
+        G.add_edges_from(edges)
+        for i in range(len(edges)):
+            G.adj[edges[i][0]][edges[i][1]]["weight"] = wgts[i]
+        G.graph["edge_weight_attr"] = "weight"
+
+        return G
+
 
     def metis_partition(self) -> np.ndarray:
         self._metis_graph = self._to_metis_graph(self._tcsr)
-
-        indptr, indices, eid = self._metis_graph.adj_tensors("csr")
-        indptr, indices = indptr.tolist(), indices.tolist()
-        # rows = []
-        # for i in range(len(indptr) - 1):
-        #     rows.extend([i] * (indptr[i + 1] - indptr[i]))
-        # ids = self._metis_graph.edge_ids(rows, indices)
-        if eid.nelement() == 0:
-            eweights = self._metis_graph.edata["weight"]
+        partitioned_file = "/home/wtx/workspace/python_project/pp/DATA/{}_{}.pkl".format(self._dataset,
+                                                                                         self._partition_num)
+        import os
+        import pickle
+        if os.path.isfile(partitioned_file):
+            with open(partitioned_file,"rb") as f:
+                data =  pickle.load(f)
+                n_cut, partition_array = data["n_cut"], data["partition_array"]
         else:
-            eweights = self._metis_graph.edata["weight"][eid]
+            # eweights = self._metis_graph.edata["weight"].tolist()
+            import time
+            t_start = time.time()
+            n_cut, partition_array = metis.part_graph(self._metis_graph,self._partition_num)
+            t_elapsed = time.time() - t_start
+            print(f"metis partition time {t_elapsed}s")
+            partition_array = np.array(partition_array)
 
-        # eweights = self._metis_graph.edata["weight"].tolist()
-        import time
-        t_start = time.time()
-        n_cut, partition_array = pymetis.part_graph(self._partition_num, xadj=indptr, adjncy=indices,
-                                                    eweights=eweights)
-        t_elapsed = time.time() - t_start
-        print(f"metis partition time {t_elapsed}s")
-        partition_array = np.array(partition_array)
+            with open(partitioned_file,"wb") as f:
+                pickle.dump( {"n_cut":n_cut, "partition_array": partition_array}, f)
+
+
         self._n_cut, self._partition_array = n_cut, partition_array
 
         for i in partition_array:
@@ -113,6 +147,43 @@ class Partitioner:
                     self._partitions[partition_array[row]].add_cut_edge(TEdge(src=row, dst=indices[j], ets=ets[j], eid=eid[j]),partition_array[indices[j]])
 
         return partition_array
+
+    # def metis_partition(self) -> np.ndarray:
+    #     self._metis_graph = self._to_metis_graph(self._tcsr)
+    #
+    #     indptr, indices, eid = self._metis_graph.adj_tensors("csr")
+    #     indptr, indices = indptr.tolist(), indices.tolist()
+    #     # rows = []
+    #     # for i in range(len(indptr) - 1):
+    #     #     rows.extend([i] * (indptr[i + 1] - indptr[i]))
+    #     # ids = self._metis_graph.edge_ids(rows, indices)
+    #     if eid.nelement() == 0:
+    #         eweights = self._metis_graph.edata["weight"]
+    #     else:
+    #         eweights = self._metis_graph.edata["weight"][eid]
+    #
+    #     # eweights = self._metis_graph.edata["weight"].tolist()
+    #     import time
+    #     t_start = time.time()
+    #     n_cut, partition_array = pymetis.part_graph(self._partition_num, xadj=indptr, adjncy=indices,
+    #                                                 eweights=eweights)
+    #     t_elapsed = time.time() - t_start
+    #     print(f"metis partition time {t_elapsed}s")
+    #     partition_array = np.array(partition_array)
+    #     self._n_cut, self._partition_array = n_cut, partition_array
+    #
+    #     for i in partition_array:
+    #         self._partitions[partition_array[i]].add_node(i)
+    #
+    #     indptr, indices, eid, ets = self._tcsr.ind, self._tcsr.nbr, self._tcsr.eid, self._tcsr.ets
+    #     for row in range(len(indptr) - 1):
+    #         for j in range(indptr[row],indptr[row+1]):
+    #             if partition_array[row] == partition_array[indices[j]]:
+    #                 self._partitions[partition_array[row]].add_edge(TEdge(src=row,dst=indices[j],ets=ets[j],eid=eid[j]))
+    #             else:
+    #                 self._partitions[partition_array[row]].add_cut_edge(TEdge(src=row, dst=indices[j], ets=ets[j], eid=eid[j]),partition_array[indices[j]])
+    #
+    #     return partition_array
 
     def ldg_partition(self, edges: pd.DataFrame, partition_num: int) -> np.ndarray:
         def get_intersection_edge_num(tcsr: TCSR, p: Partition, node_id: int):
@@ -534,6 +605,6 @@ class PP1DatasetChain():
 
 
 if __name__ == "__main__":
-    partitioner = Partitioner("WIKI", 10)
+    partitioner = Partitioner("MAG", 10)
     partitioner.partition_graph()
     partitioner.print_stats()
