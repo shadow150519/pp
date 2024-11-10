@@ -43,6 +43,7 @@ class Partitioner:
         self._node_num = len(train_g["indptr"]) - 1
         self._edge_num = len(train_g["indices"])
         self._cut_edge_num = 0
+        self._edge_weights = np.ones(self._edge_num)
 
         # for metis, metis need undirected and simple graph
         self._metis_graph = None
@@ -53,7 +54,7 @@ class Partitioner:
         if self._partition_alg == PartitionAlg.LDG:
             partition_array = self.ldg_partition(self._train_graph, self._partition_num)
         elif self._partition_alg == PartitionAlg.METIS:
-            partition_array = self.metis_partition()
+            partition_array = self.metis_partition(edge_weights=self._edge_weights)
         self.compute_relation_matrix()
         return self._partitions, partition_array
 
@@ -80,8 +81,13 @@ class Partitioner:
     #     g.edata["weight"] = torch.tensor(wgts, dtype=torch.int)
     #
     #     return g
-
-    def _to_metis_graph(self, tcsr: TCSR) -> nx.Graph:
+    def _to_metis_graph(self, tcsr: TCSR, edge_weights:List[float]) -> nx.Graph:
+        """ make graph undirected and add edge weights return networkx.Graph
+        
+        Parameters:
+            tcsr: TCSR for graph
+            weights: edge weights if don't pass treat graph as unweighted graph
+        """
         G = nx.Graph()
         indptr, indices, eid = tcsr.ind, tcsr.nbr, tcsr.eid
         # g = dgl.graph(('csr', (indptr, indices, eid)))
@@ -90,11 +96,18 @@ class Partitioner:
         # weight = g.edata["weight"]
 
         undirected_graph = defaultdict(int)
-        for row in range(len(indptr) - 1):
-            for j in range(indptr[row], indptr[row + 1]):
-                col = indices[j].item()
-                undirected_graph[(row, col)] += 1
-                undirected_graph[(col, row)] += 1
+        if edge_weights is None:
+            for row in range(len(indptr) - 1):
+                for j in range(indptr[row], indptr[row + 1]):
+                    col = indices[j].item()
+                    undirected_graph[(row, col)] += 1
+                    undirected_graph[(col, row)] += 1            
+        else:    
+            for row in range(len(indptr) - 1):
+                for j in range(indptr[row], indptr[row + 1]):
+                    col = indices[j].item()
+                    undirected_graph[(row, col)] += int(edge_weights[j] * 1000)
+                    undirected_graph[(col, row)] += int(edge_weights[j] * 1000)
 
         edges = list(undirected_graph.keys())
         wgts = [undirected_graph[edge] for edge in edges]
@@ -110,13 +123,13 @@ class Partitioner:
         return G
 
 
-    def metis_partition(self) -> np.ndarray:
-        self._metis_graph = self._to_metis_graph(self._tcsr)
+    def metis_partition(self, edge_weights,save=False) -> np.ndarray:
+        self._metis_graph = self._to_metis_graph(self._tcsr,edge_weights=edge_weights)
         partitioned_file = "/home/wtx/workspace/python_project/pp/DATA/{}_{}.pkl".format(self._dataset,
                                                                                          self._partition_num)
         import os
         import pickle
-        if os.path.isfile(partitioned_file):
+        if save and os.path.isfile(partitioned_file):
             with open(partitioned_file,"rb") as f:
                 data =  pickle.load(f)
                 n_cut, partition_array = data["n_cut"], data["partition_array"]
@@ -128,9 +141,9 @@ class Partitioner:
             t_elapsed = time.time() - t_start
             print(f"metis partition time {t_elapsed}s")
             partition_array = np.array(partition_array)
-
-            with open(partitioned_file,"wb") as f:
-                pickle.dump( {"n_cut":n_cut, "partition_array": partition_array}, f)
+            if save:
+                with open(partitioned_file,"wb") as f:
+                    pickle.dump( {"n_cut":n_cut, "partition_array": partition_array}, f)
 
 
         self._n_cut, self._partition_array = n_cut, partition_array
@@ -186,6 +199,7 @@ class Partitioner:
     #     return partition_array
 
     def ldg_partition(self, edges: pd.DataFrame, partition_num: int) -> np.ndarray:
+        raise NotImplementedError
         def get_intersection_edge_num(tcsr: TCSR, p: Partition, node_id: int):
             score = 0
             pnodes = p.nodes()
@@ -293,11 +307,19 @@ class Partitioner:
             print(
                 f"\t\tcut edge: {partition.cut_edge_num()} cut ratio: {partition.cut_edge_num() / (partition.edge_num() + partition.cut_edge_num()):.3f}")
 
+    def update_edge_weights(self,eid, pos_pred):
+        # pred = pos_pred.cpu().detach().squeeze(1).numpy()
+        self._edge_weights[eid] = 0.8*self._edge_weights[eid] + 0.2*pos_pred.cpu().detach().squeeze(1).numpy()
+        
+    
     def edge_num(self):
         return self._edge_num
 
     def node_num(self):
         return self._node_num
+
+    def partition_num(self):
+        return self._partition_num
 
 
 
@@ -412,7 +434,7 @@ class MergePartition:
             for pid2 in pids:
                 if p.id() == pid2:
                     all_edges.extend(p.edges())
-                else:
+                elif add_cross_partition:
                     all_edges.extend(p.cut_edges(pid2))
 
         all_edges = sorted(all_edges,key=lambda e: e.ets)

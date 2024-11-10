@@ -16,3 +16,5 @@ partition_log_v0/
 *.out
 partition_log/
 partition_log_drop/
+partition_log_drop_ours/
+partition_log_drop_random/
